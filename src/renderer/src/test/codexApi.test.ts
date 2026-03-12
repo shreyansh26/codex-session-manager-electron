@@ -472,6 +472,35 @@ describe("shared chronology replay fixtures", () => {
       "call-reused"
     ]);
   });
+
+  it("reorders flat historical item snapshots numerically for the shared historical fixture when turns are absent", () => {
+    const fixture = chronologyReplayFixtureById["historical-cli-session-flat-item-order"];
+    const snapshotStep = fixture.steps.find(
+      (step) => step.source === "thread_read"
+    );
+    expect(snapshotStep?.source).toBe("thread_read");
+    if (!snapshotStep || snapshotStep.source !== "thread_read") {
+      throw new Error("Missing historical existing-session snapshot step");
+    }
+
+    const messages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      fixture.threadId,
+      snapshotStep.snapshot
+    );
+
+    expect(messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      fixture.expectedOrder
+    );
+    expect(messages.map((message) => `${message.role}:${message.id}`)).not.toEqual([
+      "user:item-1",
+      "assistant:item-10",
+      "user:item-11",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4"
+    ]);
+  });
 });
 
 describe("mock transport integration", () => {

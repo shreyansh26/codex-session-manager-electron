@@ -1081,4 +1081,32 @@ describe("frontend transcript emulation", () => {
       existingSessionChronologyFixture.expectedNumericSnapshotOrder
     );
   });
+
+  it("keeps the historical shared fixture snapshot in numeric item order before rollout enrichment", () => {
+    const fixture = chronologyReplayFixtureById["historical-cli-session-flat-item-order"];
+    const snapshotStep = fixture.steps.find(
+      (step) => step.source === "thread_read"
+    );
+    expect(snapshotStep?.source).toBe("thread_read");
+    if (!snapshotStep || snapshotStep.source !== "thread_read") {
+      throw new Error("Missing historical shared-fixture snapshot step");
+    }
+
+    const snapshotMessages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      fixture.threadId,
+      snapshotStep.snapshot
+    );
+    const reopened = __TEST_ONLY__.mergeSnapshotMessages([], snapshotMessages);
+
+    expect(messageRoleIdOrder(reopened)).toEqual(fixture.expectedOrder);
+    expect(messageRoleIdOrder(reopened)).not.toEqual([
+      "user:item-1",
+      "assistant:item-10",
+      "user:item-11",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4"
+    ]);
+  });
 });
