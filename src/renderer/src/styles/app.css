@@ -536,8 +536,9 @@
   border-bottom: 1px solid color-mix(in srgb, var(--line) 90%, transparent);
   padding: 0.55rem 1rem 0.8rem;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   max-height: min(45dvh, 420px);
+  min-width: 0;
 }
 
 .workspace__search-results-meta {
@@ -640,8 +641,9 @@
 .chat-panel {
   padding: 1rem;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   min-height: 0;
+  min-width: 0;
 }
 
 .chat-panel--empty {
@@ -693,6 +695,7 @@
   padding: 0;
   display: grid;
   gap: 0.72rem;
+  min-width: 0;
 }
 
 .chat-panel__history-controls {
@@ -735,6 +738,7 @@
   max-width: min(80ch, 100%);
   line-height: 1.45;
   box-shadow: 0 12px 28px rgba(15, 21, 30, 0.08);
+  min-width: 0;
 }
 
 .bubble p {
@@ -774,6 +778,7 @@
   border-color: color-mix(in srgb, #c8d2e4 64%, var(--line));
   margin-right: auto;
   max-width: min(92ch, 100%);
+  overflow-x: auto;
 }
 
 .bubble--user {
@@ -833,6 +838,7 @@
 .bubble__tool-card {
   display: grid;
   gap: 0.7rem;
+  min-width: 0;
 }
 
 .bubble__tool-header {
@@ -879,6 +885,7 @@
 .bubble__tool-section {
   display: grid;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .bubble__tool-section-label {
