@@ -852,6 +852,141 @@ export const chronologyReplayFixtures: ChronologyReplayFixture[] = [
         inputIncludes: "\"cmd\":\"ls src/state\""
       }
     ]
+  },
+  {
+    id: "historical-cli-session-flat-item-order",
+    description:
+      "An older CLI-created session re-opened in the GUI can flatten into lexicographic top-level item-* history; recovered rollout chronology must restore the real transcript order.",
+    threadId: "thread-historical-cli-session",
+    steps: [
+      threadRead("flat-thread-read-history", {
+        createdAt: "2026-01-10T16:01:40.000Z",
+        updatedAt: "2026-01-10T16:01:40.000Z",
+        messages: [
+          {
+            id: "item-1",
+            role: "user",
+            content: "I want a GitHub Action that emails me when tracked repositories get new commits."
+          },
+          {
+            id: "item-10",
+            role: "assistant",
+            content: "I can wire that up once the repo and notification config are settled."
+          },
+          {
+            id: "item-11",
+            role: "user",
+            content: "Track main and develop, and make the config easy to extend."
+          },
+          {
+            id: "item-2",
+            role: "assistant",
+            content: "I can help with that. I need to know which repositories and branches to watch."
+          },
+          {
+            id: "item-3",
+            role: "user",
+            content: "Start with one repository for now, but keep it configurable."
+          },
+          {
+            id: "item-4",
+            role: "assistant",
+            content: "Understood. I will scaffold the workflow and a repo configuration file."
+          }
+        ]
+      }),
+      rollout("canonical-rollout-history", [
+        {
+          kind: "message",
+          id: "item-1",
+          role: "user",
+          content: "I want a GitHub Action that emails me when tracked repositories get new commits.",
+          createdAt: "2026-01-10T15:06:13.810Z",
+          order: 0
+        },
+        {
+          kind: "message",
+          id: "item-2",
+          role: "assistant",
+          content: "I can help with that. I need to know which repositories and branches to watch.",
+          createdAt: "2026-01-10T15:06:20.500Z",
+          order: 1
+        },
+        {
+          kind: "message",
+          id: "item-3",
+          role: "user",
+          content: "Start with one repository for now, but keep it configurable.",
+          createdAt: "2026-01-10T15:06:35.000Z",
+          order: 2
+        },
+        {
+          kind: "message",
+          id: "item-4",
+          role: "assistant",
+          content: "Understood. I will scaffold the workflow and a repo configuration file.",
+          createdAt: "2026-01-10T15:06:42.000Z",
+          order: 3
+        },
+        {
+          kind: "message",
+          id: "item-10",
+          role: "assistant",
+          content: "I can wire that up once the repo and notification config are settled.",
+          createdAt: "2026-01-10T15:07:11.000Z",
+          order: 4
+        },
+        {
+          kind: "message",
+          id: "item-11",
+          role: "user",
+          content: "Track main and develop, and make the config easy to extend.",
+          createdAt: "2026-01-10T15:07:27.000Z",
+          order: 5
+        }
+      ])
+    ],
+    expectedOrder: [
+      "user:item-1",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4",
+      "assistant:item-10",
+      "user:item-11"
+    ],
+    expectedVisibleEntries: [
+      {
+        id: "item-1",
+        role: "user",
+        contentIncludes: "emails me when tracked repositories get new commits"
+      },
+      {
+        id: "item-2",
+        role: "assistant",
+        contentIncludes: "which repositories and branches to watch"
+      },
+      {
+        id: "item-3",
+        role: "user",
+        contentIncludes: "one repository for now"
+      },
+      {
+        id: "item-4",
+        role: "assistant",
+        contentIncludes: "scaffold the workflow"
+      },
+      {
+        id: "item-10",
+        role: "assistant",
+        contentIncludes: "notification config are settled"
+      },
+      {
+        id: "item-11",
+        role: "user",
+        contentIncludes: "Track main and develop"
+      }
+    ],
+    expectedToolBubbles: []
   }
 ];
 
