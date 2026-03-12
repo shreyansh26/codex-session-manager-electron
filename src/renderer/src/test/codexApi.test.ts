@@ -23,8 +23,14 @@ import type {
   ComposerSubmission,
   DeviceRecord
 } from "../domain/types";
-import { chronologyReplayFixtureById } from "./chronologyReplayFixtures";
-import { resetMockRuntimeRegistry } from "../../../shared/mock/mockHost";
+import {
+  chronologyReplayFixtureById,
+  existingSessionChronologyFixture
+} from "./chronologyReplayFixtures";
+import {
+  getMockRuntime,
+  resetMockRuntimeRegistry
+} from "../../../shared/mock/mockHost";
 
 const sampleImage = (url: string): ChatImageAttachment => ({
   id: "img-1",
@@ -34,6 +40,68 @@ const sampleImage = (url: string): ChatImageAttachment => ({
 
 const hasStringInputFallback = (attempts: Array<Record<string, unknown>>): boolean =>
   attempts.some((attempt) => typeof attempt.input === "string");
+
+const commandTextFromParams = (params: unknown): string => {
+  if (!params || typeof params !== "object") {
+    return "";
+  }
+
+  const command = (params as Record<string, unknown>).command;
+  if (Array.isArray(command)) {
+    return command.map((entry) => String(entry)).join(" ");
+  }
+
+  return typeof command === "string" ? command : "";
+};
+
+const installExistingSessionMockRuntime = (
+  endpoint: string,
+  options: {
+    threadReadResult: { thread: Record<string, unknown> };
+    rolloutPathFromSearch: string | null;
+    rolloutStdoutByPath: Record<string, string>;
+  }
+): { commands: string[] } => {
+  const runtime = getMockRuntime(endpoint);
+  const originalCall = runtime.call.bind(runtime);
+  const commands: string[] = [];
+
+  runtime.call = async <T>(method: string, params?: unknown): Promise<T> => {
+    if (method === "thread/read") {
+      return structuredClone(options.threadReadResult) as T;
+    }
+
+    if (method !== "command/exec") {
+      return originalCall(method, params);
+    }
+
+    const commandText = commandTextFromParams(params);
+    commands.push(commandText);
+
+    if (commandText.includes('find "$root" -type f -name')) {
+      return {
+        exitCode: 0,
+        stdout: options.rolloutPathFromSearch ?? "",
+        stderr: ""
+      } as T;
+    }
+
+    const matchedPath = Object.keys(options.rolloutStdoutByPath).find((path) =>
+      commandText.includes(path)
+    );
+    if (matchedPath) {
+      return {
+        exitCode: 0,
+        stdout: options.rolloutStdoutByPath[matchedPath],
+        stderr: ""
+      } as T;
+    }
+
+    return originalCall(method, params);
+  };
+
+  return { commands };
+};
 
 const mockDevice = (endpoint = "mock://local/mock-local-device"): DeviceRecord => ({
   id: "mock-local-device",
@@ -404,6 +472,35 @@ describe("shared chronology replay fixtures", () => {
       "call-reused"
     ]);
   });
+
+  it("reorders flat historical item snapshots numerically for the shared historical fixture when turns are absent", () => {
+    const fixture = chronologyReplayFixtureById["historical-cli-session-flat-item-order"];
+    const snapshotStep = fixture.steps.find(
+      (step) => step.source === "thread_read"
+    );
+    expect(snapshotStep?.source).toBe("thread_read");
+    if (!snapshotStep || snapshotStep.source !== "thread_read") {
+      throw new Error("Missing historical existing-session snapshot step");
+    }
+
+    const messages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      fixture.threadId,
+      snapshotStep.snapshot
+    );
+
+    expect(messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      fixture.expectedOrder
+    );
+    expect(messages.map((message) => `${message.role}:${message.id}`)).not.toEqual([
+      "user:item-1",
+      "assistant:item-10",
+      "user:item-11",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4"
+    ]);
+  });
 });
 
 describe("mock transport integration", () => {
@@ -438,6 +535,66 @@ describe("mock transport integration", () => {
       "/Users/mock/workspace/docs",
       "/Users/mock/workspace/playgrounds"
     ]);
+  });
+
+  it("recovers rollout chronology when thread.path is missing on an older existing session", async () => {
+    const endpoint = "mock://local/existing-session-missing-path";
+    const device = mockDevice(endpoint);
+    const rolloutStdout = JSON.stringify(existingSessionChronologyFixture.rolloutRecords);
+    const { commands } = installExistingSessionMockRuntime(endpoint, {
+      threadReadResult: existingSessionChronologyFixture.threadReadResult,
+      rolloutPathFromSearch: existingSessionChronologyFixture.rolloutPath,
+      rolloutStdoutByPath: {
+        [existingSessionChronologyFixture.rolloutPath]: rolloutStdout
+      }
+    });
+
+    const payload = await readThread(device, existingSessionChronologyFixture.threadId);
+
+    expect(payload.messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedCanonicalOrder
+    );
+    expect(commands.some((command) => command.includes('find "$root" -type f -name'))).toBe(
+      true
+    );
+    expect(
+      commands.some((command) =>
+        command.includes(existingSessionChronologyFixture.rolloutPath)
+      )
+    ).toBe(true);
+  });
+
+  it("falls back to the discovered rollout path when the stored thread.path returns no timeline messages", async () => {
+    const endpoint = "mock://local/existing-session-stale-path";
+    const device = mockDevice(endpoint);
+    const rolloutStdout = JSON.stringify(existingSessionChronologyFixture.rolloutRecords);
+    const { commands } = installExistingSessionMockRuntime(endpoint, {
+      threadReadResult: existingSessionChronologyFixture.threadReadResultWithStalePath,
+      rolloutPathFromSearch: existingSessionChronologyFixture.rolloutPath,
+      rolloutStdoutByPath: {
+        [existingSessionChronologyFixture.staleRolloutPath]: "",
+        [existingSessionChronologyFixture.rolloutPath]: rolloutStdout
+      }
+    });
+
+    const payload = await readThread(device, existingSessionChronologyFixture.threadId);
+
+    expect(payload.messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedCanonicalOrder
+    );
+    expect(
+      commands.filter((command) =>
+        command.includes(existingSessionChronologyFixture.staleRolloutPath)
+      )
+    ).toHaveLength(1);
+    expect(commands.some((command) => command.includes('find "$root" -type f -name'))).toBe(
+      true
+    );
+    expect(
+      commands.filter((command) =>
+        command.includes(existingSessionChronologyFixture.rolloutPath)
+      )
+    ).toHaveLength(1);
   });
 
   it("replays the same start-thread and start-turn sequence after resetting the mock registry", async () => {
@@ -622,6 +779,59 @@ describe("parseMessagesFromThread", () => {
     ]);
     expect(messages.find((message) => message.id === "reasoning")?.eventType).toBe(
       "reasoning"
+    );
+  });
+
+  it("reorders flat existing-session item snapshots numerically when turns are missing", () => {
+    const messages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      existingSessionChronologyFixture.threadId,
+      existingSessionChronologyFixture.threadReadSnapshot
+    );
+
+    expect(messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedNumericSnapshotOrder
+    );
+  });
+
+  it("prefers recovered rollout chronology when opening a historical existing session later", async () => {
+    const snapshotMessages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      existingSessionChronologyFixture.threadId,
+      existingSessionChronologyFixture.threadReadSnapshot
+    );
+    const rolloutMessages = existingSessionChronologyFixture.rolloutRecords
+      .map((record) =>
+        codexApiTest.toTimelineMessageFromRolloutRecord(
+          "device-1",
+          existingSessionChronologyFixture.threadId,
+          record
+        )
+      )
+      .filter((message): message is ChatMessage => message !== null);
+
+    const recovered = await codexApiTest.recoverRolloutHistoryForThread(
+      mockDevice(),
+      existingSessionChronologyFixture.threadId,
+      null,
+      "2026-01-10T16:12:55.000Z",
+      {
+        findLatestRolloutPath: async () =>
+          `/Users/mock/.codex/sessions/2026/01/10/rollout-${existingSessionChronologyFixture.threadId}.jsonl`,
+        readRolloutMessages: async (_device, _threadId, path) =>
+          path ? rolloutMessages : []
+      }
+    );
+
+    const openedMessages =
+      recovered.messages.length > 0 ? recovered.messages : snapshotMessages;
+
+    expect(snapshotMessages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedNumericSnapshotOrder
+    );
+    expect(recovered.rolloutPath).toContain(existingSessionChronologyFixture.threadId);
+    expect(openedMessages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedCanonicalOrder
     );
   });
 });

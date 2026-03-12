@@ -2,6 +2,7 @@ import { join, resolve } from "node:path";
 import {
   findLatestRunDirectory,
   getNestedValue,
+  readNamedSnapshot,
   readRunnerState,
   readRunSummary,
   readRuntimeState,
@@ -27,6 +28,11 @@ export const queryHarnessArtifacts = async (options: {
     readRuntimeState(join(runDirectory, "runtime-state.json")),
     readRunnerState(join(runDirectory, "snapshots", "runner-state.json"))
   ]);
+
+  if (options.field.startsWith("snapshot:")) {
+    const label = options.field.slice("snapshot:".length).trim();
+    return readNamedSnapshot(runDirectory, label);
+  }
 
   const value = getNestedValue(
     {

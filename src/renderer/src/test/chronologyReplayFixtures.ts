@@ -46,6 +46,27 @@ export interface ChronologyReplayFixture {
   expectedToolBubbles: ExpectedToolBubble[];
 }
 
+export interface ExistingSessionChronologyFixture {
+  id: string;
+  description: string;
+  threadId: string;
+  rolloutPath: string;
+  staleRolloutPath: string;
+  threadReadSnapshot: Record<string, unknown>;
+  threadReadResult: {
+    thread: Record<string, unknown>;
+  };
+  threadReadResultWithStalePath: {
+    thread: Record<string, unknown>;
+  };
+  rolloutRecords: Array<Record<string, unknown>>;
+  expectedLexicographicSnapshotOrder: string[];
+  expectedNumericSnapshotOrder: string[];
+  expectedCanonicalOrder: string[];
+  expectedVisibleEntries: ExpectedTranscriptEntry[];
+  expectedToolBubbles: ExpectedToolBubble[];
+}
+
 const messageCompleted = (params: {
   threadId: string;
   id: string;
@@ -618,6 +639,122 @@ export const chronologyReplayFixtures: ChronologyReplayFixture[] = [
     ]
   },
   {
+    id: "existing-session-flat-snapshot-lexicographic-drift",
+    description:
+      "Older CLI sessions can reopen through a lossy flat thread/read snapshot ordered lexicographically by item-* id while rollout history still contains the canonical chronology.",
+    threadId: "thread-cli-reopen-lexicographic-items",
+    steps: [
+      threadRead("flat-thread-read-lexicographic", {
+        createdAt: "2026-01-10T20:34:59.000Z",
+        updatedAt: "2026-01-10T20:35:30.000Z",
+        messages: [
+          {
+            id: "item-1",
+            role: "user",
+            content: "Draft a migration checklist for the timeline parser."
+          },
+          {
+            id: "item-10",
+            role: "assistant",
+            content: "Starting with quick parser diagnostics."
+          },
+          {
+            id: "item-11",
+            role: "assistant",
+            content: "Diagnostics captured. Continuing."
+          },
+          {
+            id: "item-2",
+            role: "assistant",
+            content: "First, I will map message ordering."
+          },
+          {
+            id: "item-3",
+            role: "user",
+            content: "Also include rollout recovery."
+          }
+        ]
+      }),
+      rollout("canonical-rollout-history", [
+        {
+          kind: "message",
+          id: "item-1",
+          role: "user",
+          content: "Draft a migration checklist for the timeline parser.",
+          createdAt: "2026-01-10T20:34:43.100Z",
+          sourceType: "turn_message"
+        },
+        {
+          kind: "message",
+          id: "item-2",
+          role: "assistant",
+          content: "First, I will map message ordering.",
+          createdAt: "2026-01-10T20:34:47.210Z",
+          sourceType: "response_item"
+        },
+        {
+          kind: "message",
+          id: "item-3",
+          role: "user",
+          content: "Also include rollout recovery.",
+          createdAt: "2026-01-10T20:34:50.904Z",
+          sourceType: "turn_message"
+        },
+        {
+          kind: "message",
+          id: "item-10",
+          role: "assistant",
+          content: "Starting with quick parser diagnostics.",
+          createdAt: "2026-01-10T20:35:11.022Z",
+          sourceType: "response_item"
+        },
+        {
+          kind: "message",
+          id: "item-11",
+          role: "assistant",
+          content: "Diagnostics captured. Continuing.",
+          createdAt: "2026-01-10T20:35:18.491Z",
+          sourceType: "response_item"
+        }
+      ])
+    ],
+    expectedOrder: [
+      "user:item-1",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-10",
+      "assistant:item-11"
+    ],
+    expectedVisibleEntries: [
+      {
+        id: "item-1",
+        role: "user",
+        contentIncludes: "Draft a migration checklist for the timeline parser."
+      },
+      {
+        id: "item-2",
+        role: "assistant",
+        contentIncludes: "First, I will map message ordering."
+      },
+      {
+        id: "item-3",
+        role: "user",
+        contentIncludes: "Also include rollout recovery."
+      },
+      {
+        id: "item-10",
+        role: "assistant",
+        contentIncludes: "Starting with quick parser diagnostics."
+      },
+      {
+        id: "item-11",
+        role: "assistant",
+        contentIncludes: "Diagnostics captured. Continuing."
+      }
+    ],
+    expectedToolBubbles: []
+  },
+  {
     id: "stale-refresh-pulls-old-tool-upward",
     description:
       "A stale thread/read refresh must not pull an older tool bubble above a newer user or assistant turn.",
@@ -715,9 +852,413 @@ export const chronologyReplayFixtures: ChronologyReplayFixture[] = [
         inputIncludes: "\"cmd\":\"ls src/state\""
       }
     ]
+  },
+  {
+    id: "historical-cli-session-flat-item-order",
+    description:
+      "An older CLI-created session re-opened in the GUI can flatten into lexicographic top-level item-* history; recovered rollout chronology must restore the real transcript order.",
+    threadId: "thread-historical-cli-session",
+    steps: [
+      threadRead("flat-thread-read-history", {
+        createdAt: "2026-01-10T16:01:40.000Z",
+        updatedAt: "2026-01-10T16:01:40.000Z",
+        messages: [
+          {
+            id: "item-1",
+            role: "user",
+            content: "I want a GitHub Action that emails me when tracked repositories get new commits."
+          },
+          {
+            id: "item-10",
+            role: "assistant",
+            content: "I can wire that up once the repo and notification config are settled."
+          },
+          {
+            id: "item-11",
+            role: "user",
+            content: "Track main and develop, and make the config easy to extend."
+          },
+          {
+            id: "item-2",
+            role: "assistant",
+            content: "I can help with that. I need to know which repositories and branches to watch."
+          },
+          {
+            id: "item-3",
+            role: "user",
+            content: "Start with one repository for now, but keep it configurable."
+          },
+          {
+            id: "item-4",
+            role: "assistant",
+            content: "Understood. I will scaffold the workflow and a repo configuration file."
+          }
+        ]
+      }),
+      rollout("canonical-rollout-history", [
+        {
+          kind: "message",
+          id: "item-1",
+          role: "user",
+          content: "I want a GitHub Action that emails me when tracked repositories get new commits.",
+          createdAt: "2026-01-10T15:06:13.810Z",
+          order: 0
+        },
+        {
+          kind: "message",
+          id: "item-2",
+          role: "assistant",
+          content: "I can help with that. I need to know which repositories and branches to watch.",
+          createdAt: "2026-01-10T15:06:20.500Z",
+          order: 1
+        },
+        {
+          kind: "message",
+          id: "item-3",
+          role: "user",
+          content: "Start with one repository for now, but keep it configurable.",
+          createdAt: "2026-01-10T15:06:35.000Z",
+          order: 2
+        },
+        {
+          kind: "message",
+          id: "item-4",
+          role: "assistant",
+          content: "Understood. I will scaffold the workflow and a repo configuration file.",
+          createdAt: "2026-01-10T15:06:42.000Z",
+          order: 3
+        },
+        {
+          kind: "message",
+          id: "item-10",
+          role: "assistant",
+          content: "I can wire that up once the repo and notification config are settled.",
+          createdAt: "2026-01-10T15:07:11.000Z",
+          order: 4
+        },
+        {
+          kind: "message",
+          id: "item-11",
+          role: "user",
+          content: "Track main and develop, and make the config easy to extend.",
+          createdAt: "2026-01-10T15:07:27.000Z",
+          order: 5
+        }
+      ])
+    ],
+    expectedOrder: [
+      "user:item-1",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4",
+      "assistant:item-10",
+      "user:item-11"
+    ],
+    expectedVisibleEntries: [
+      {
+        id: "item-1",
+        role: "user",
+        contentIncludes: "emails me when tracked repositories get new commits"
+      },
+      {
+        id: "item-2",
+        role: "assistant",
+        contentIncludes: "which repositories and branches to watch"
+      },
+      {
+        id: "item-3",
+        role: "user",
+        contentIncludes: "one repository for now"
+      },
+      {
+        id: "item-4",
+        role: "assistant",
+        contentIncludes: "scaffold the workflow"
+      },
+      {
+        id: "item-10",
+        role: "assistant",
+        contentIncludes: "notification config are settled"
+      },
+      {
+        id: "item-11",
+        role: "user",
+        contentIncludes: "Track main and develop"
+      }
+    ],
+    expectedToolBubbles: []
   }
 ];
 
 export const chronologyReplayFixtureById = Object.fromEntries(
   chronologyReplayFixtures.map((fixture) => [fixture.id, fixture])
 ) as Record<string, ChronologyReplayFixture>;
+
+export const existingSessionChronologyFixture: ExistingSessionChronologyFixture = {
+  id: "existing-session-flat-snapshot-rollout-recovery",
+  description:
+    "A historical CLI session is reopened later from a lossy flat thread/read snapshot whose item-* ids are already lexicographically ordered and share one fallback timestamp.",
+  threadId: "thread-existing-session-flat-snapshot",
+  rolloutPath:
+    "/Users/shreyansh/.codex/sessions/2026/01/10/rollout-2026-01-10T20-34-43-thread-existing-session-flat-snapshot.jsonl",
+  staleRolloutPath:
+    "/Users/shreyansh/Projects/codex-app-v2/.codex/sessions/2026/01/10/rollout-2026-01-10T20-34-43-thread-existing-session-flat-snapshot.jsonl",
+  threadReadSnapshot: {
+    id: "thread-existing-session-flat-snapshot",
+    createdAt: "2026-01-10T16:01:40.000Z",
+    updatedAt: "2026-01-10T16:12:55.000Z",
+    messages: [
+      {
+        id: "item-1",
+        role: "user",
+        content:
+          "Set up a GitHub Action that emails me whenever tracked repositories receive new commits."
+      },
+      {
+        id: "item-10",
+        role: "assistant",
+        content:
+          "I found the workflow syntax issue and corrected the invalid trigger configuration."
+      },
+      {
+        id: "item-11",
+        role: "assistant",
+        content:
+          "The repository now sends email notifications for configured branches and includes setup notes."
+      },
+      {
+        id: "item-2",
+        role: "assistant",
+        content:
+          "I’m inspecting the empty repository first, then I’ll scaffold the workflow and config files."
+      },
+      {
+        id: "item-3",
+        role: "user",
+        content: "Track pushes on the main and release branches."
+      },
+      {
+        id: "item-4",
+        role: "assistant",
+        content:
+          "I added a tracked-repositories config file so the workflow knows which branches to watch."
+      }
+    ]
+  },
+  threadReadResult: {
+    thread: {
+      id: "thread-existing-session-flat-snapshot",
+      title: "GitHub commit tracker automation",
+      preview:
+        "The repository now sends email notifications for configured branches and includes setup notes.",
+      updatedAt: "2026-01-10T16:12:55.000Z",
+      cwd: "/Users/shreyansh/Projects/track-project",
+      model: "gpt-5.4",
+      messages: [
+        {
+          id: "item-1",
+          role: "user",
+          content:
+            "Set up a GitHub Action that emails me whenever tracked repositories receive new commits."
+        },
+        {
+          id: "item-10",
+          role: "assistant",
+          content:
+            "I found the workflow syntax issue and corrected the invalid trigger configuration."
+        },
+        {
+          id: "item-11",
+          role: "assistant",
+          content:
+            "The repository now sends email notifications for configured branches and includes setup notes."
+        },
+        {
+          id: "item-2",
+          role: "assistant",
+          content:
+            "I’m inspecting the empty repository first, then I’ll scaffold the workflow and config files."
+        },
+        {
+          id: "item-3",
+          role: "user",
+          content: "Track pushes on the main and release branches."
+        },
+        {
+          id: "item-4",
+          role: "assistant",
+          content:
+            "I added a tracked-repositories config file so the workflow knows which branches to watch."
+        }
+      ]
+    }
+  },
+  threadReadResultWithStalePath: {
+    thread: {
+      id: "thread-existing-session-flat-snapshot",
+      title: "GitHub commit tracker automation",
+      preview:
+        "The repository now sends email notifications for configured branches and includes setup notes.",
+      updatedAt: "2026-01-10T16:12:55.000Z",
+      cwd: "/Users/shreyansh/Projects/track-project",
+      model: "gpt-5.4",
+      path:
+        "/Users/shreyansh/Projects/codex-app-v2/.codex/sessions/2026/01/10/rollout-2026-01-10T20-34-43-thread-existing-session-flat-snapshot.jsonl",
+      messages: [
+        {
+          id: "item-1",
+          role: "user",
+          content:
+            "Set up a GitHub Action that emails me whenever tracked repositories receive new commits."
+        },
+        {
+          id: "item-10",
+          role: "assistant",
+          content:
+            "I found the workflow syntax issue and corrected the invalid trigger configuration."
+        },
+        {
+          id: "item-11",
+          role: "assistant",
+          content:
+            "The repository now sends email notifications for configured branches and includes setup notes."
+        },
+        {
+          id: "item-2",
+          role: "assistant",
+          content:
+            "I’m inspecting the empty repository first, then I’ll scaffold the workflow and config files."
+        },
+        {
+          id: "item-3",
+          role: "user",
+          content: "Track pushes on the main and release branches."
+        },
+        {
+          id: "item-4",
+          role: "assistant",
+          content:
+            "I added a tracked-repositories config file so the workflow knows which branches to watch."
+        }
+      ]
+    }
+  },
+  rolloutRecords: [
+    {
+      kind: "message",
+      id: "message-1",
+      role: "user",
+      content:
+        "Set up a GitHub Action that emails me whenever tracked repositories receive new commits.",
+      createdAt: "2026-01-10T15:06:13.810Z",
+      order: 0,
+      sourceType: "event_msg"
+    },
+    {
+      kind: "message",
+      id: "message-2",
+      role: "assistant",
+      content:
+        "I’m inspecting the empty repository first, then I’ll scaffold the workflow and config files.",
+      createdAt: "2026-01-10T15:06:40.237Z",
+      order: 1,
+      sourceType: "response_item"
+    },
+    {
+      kind: "message",
+      id: "message-3",
+      role: "user",
+      content: "Track pushes on the main and release branches.",
+      createdAt: "2026-01-10T15:07:01.905Z",
+      order: 2,
+      sourceType: "event_msg"
+    },
+    {
+      kind: "message",
+      id: "message-4",
+      role: "assistant",
+      content:
+        "I added a tracked-repositories config file so the workflow knows which branches to watch.",
+      createdAt: "2026-01-10T15:07:32.422Z",
+      order: 3,
+      sourceType: "response_item"
+    },
+    {
+      kind: "message",
+      id: "message-10",
+      role: "assistant",
+      content:
+        "I found the workflow syntax issue and corrected the invalid trigger configuration.",
+      createdAt: "2026-01-10T15:09:41.901Z",
+      order: 4,
+      sourceType: "response_item"
+    },
+    {
+      kind: "message",
+      id: "message-11",
+      role: "assistant",
+      content:
+        "The repository now sends email notifications for configured branches and includes setup notes.",
+      createdAt: "2026-01-10T15:10:18.044Z",
+      order: 5,
+      sourceType: "response_item"
+    }
+  ],
+  expectedLexicographicSnapshotOrder: [
+    "user:item-1",
+    "assistant:item-10",
+    "assistant:item-11",
+    "assistant:item-2",
+    "user:item-3",
+    "assistant:item-4"
+  ],
+  expectedNumericSnapshotOrder: [
+    "user:item-1",
+    "assistant:item-2",
+    "user:item-3",
+    "assistant:item-4",
+    "assistant:item-10",
+    "assistant:item-11"
+  ],
+  expectedCanonicalOrder: [
+    "user:message-1",
+    "assistant:message-2",
+    "user:message-3",
+    "assistant:message-4",
+    "assistant:message-10",
+    "assistant:message-11"
+  ],
+  expectedVisibleEntries: [
+    {
+      id: "message-1",
+      role: "user",
+      contentIncludes: "emails me whenever tracked repositories receive new commits"
+    },
+    {
+      id: "message-2",
+      role: "assistant",
+      contentIncludes: "inspecting the empty repository first"
+    },
+    {
+      id: "message-3",
+      role: "user",
+      contentIncludes: "main and release branches"
+    },
+    {
+      id: "message-4",
+      role: "assistant",
+      contentIncludes: "tracked-repositories config file"
+    },
+    {
+      id: "message-10",
+      role: "assistant",
+      contentIncludes: "corrected the invalid trigger configuration"
+    },
+    {
+      id: "message-11",
+      role: "assistant",
+      contentIncludes: "email notifications for configured branches"
+    }
+  ],
+  expectedToolBubbles: []
+};

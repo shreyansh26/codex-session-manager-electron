@@ -93,4 +93,34 @@ describe("installRendererDiagnostics", () => {
       "info"
     );
   });
+
+  it("supports explicit snapshot payloads and historical transcript capture hooks", async () => {
+    const { windowLike } = createWindowStub();
+    const captureHistoricalSessionTranscript = vi.fn(async (sessionKey: string) => ({
+      sessionKey,
+      captures: []
+    }));
+
+    installRendererDiagnostics({
+      windowLike,
+      getStateSnapshot: () => ({ devices: 2 }),
+      captureHistoricalSessionTranscript
+    });
+
+    await windowLike.__CODEX_RENDERER_HOOKS__?.pushStateSnapshot("custom", {
+      ok: true
+    });
+    const capture = await windowLike.__CODEX_RENDERER_HOOKS__?.captureHistoricalSessionTranscript?.(
+      "device-1::thread-1"
+    );
+
+    expect(windowLike.__CODEX_HARNESS__.snapshotState).toHaveBeenCalledWith("custom", {
+      ok: true
+    });
+    expect(captureHistoricalSessionTranscript).toHaveBeenCalledWith("device-1::thread-1");
+    expect(capture).toEqual({
+      sessionKey: "device-1::thread-1",
+      captures: []
+    });
+  });
 });

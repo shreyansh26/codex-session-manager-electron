@@ -6,6 +6,7 @@ import { __TEST_ONLY__ as codexApiTest } from "../services/codexApi";
 import type { ChatMessage } from "../domain/types";
 import {
   chronologyReplayFixtureById,
+  existingSessionChronologyFixture,
   type ExpectedToolBubble
 } from "./chronologyReplayFixtures";
 import {
@@ -1047,5 +1048,65 @@ describe("frontend transcript emulation", () => {
 
     expect(messageRoleIdOrder(messages)).toEqual(fixture.expectedOrder);
     expectToolBubblesToMatch(messages, fixture.expectedToolBubbles);
+  });
+
+  it("replays a reopened CLI session from flat thread/read history into canonical rollout chronology", () => {
+    const fixture =
+      chronologyReplayFixtureById["existing-session-flat-snapshot-lexicographic-drift"];
+    const messages = applyChronologyReplayFixture(fixture);
+
+    expect(messageRoleIdOrder(messages)).toEqual(fixture.expectedOrder);
+    expect(messages.map((message) => message.createdAt)).toEqual([
+      "2026-01-10T20:34:43.100Z",
+      "2026-01-10T20:34:47.210Z",
+      "2026-01-10T20:34:50.904Z",
+      "2026-01-10T20:35:11.022Z",
+      "2026-01-10T20:35:18.491Z"
+    ]);
+    expect(messageRoleIdOrder(messages)).not.toEqual(
+      existingSessionChronologyFixture.expectedLexicographicSnapshotOrder
+    );
+  });
+
+  it("keeps reopened flat existing-session snapshots in numeric item order before rollout enrichment arrives", () => {
+    const snapshotMessages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      existingSessionChronologyFixture.threadId,
+      existingSessionChronologyFixture.threadReadSnapshot
+    );
+
+    const reopened = __TEST_ONLY__.mergeSnapshotMessages([], snapshotMessages);
+
+    expect(messageRoleIdOrder(reopened)).toEqual(
+      existingSessionChronologyFixture.expectedNumericSnapshotOrder
+    );
+  });
+
+  it("keeps the historical shared fixture snapshot in numeric item order before rollout enrichment", () => {
+    const fixture = chronologyReplayFixtureById["historical-cli-session-flat-item-order"];
+    const snapshotStep = fixture.steps.find(
+      (step) => step.source === "thread_read"
+    );
+    expect(snapshotStep?.source).toBe("thread_read");
+    if (!snapshotStep || snapshotStep.source !== "thread_read") {
+      throw new Error("Missing historical shared-fixture snapshot step");
+    }
+
+    const snapshotMessages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      fixture.threadId,
+      snapshotStep.snapshot
+    );
+    const reopened = __TEST_ONLY__.mergeSnapshotMessages([], snapshotMessages);
+
+    expect(messageRoleIdOrder(reopened)).toEqual(fixture.expectedOrder);
+    expect(messageRoleIdOrder(reopened)).not.toEqual([
+      "user:item-1",
+      "assistant:item-10",
+      "user:item-11",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-4"
+    ]);
   });
 });
