@@ -1,0 +1,114 @@
+:root {
+  --font-body: "Avenir Next", "Segoe UI", sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+  --shadow-shell: 0 24px 80px rgba(15, 21, 30, 0.18);
+  --shadow-card: 0 18px 42px rgba(15, 21, 30, 0.12);
+  color: var(--text-main);
+  font-family: var(--font-body);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg-ink: #0b1218;
+  --bg-raised: rgba(14, 21, 29, 0.86);
+  --bg-soft: rgba(28, 38, 50, 0.88);
+  --line: rgba(113, 149, 170, 0.18);
+  --line-strong: rgba(164, 205, 229, 0.3);
+  --text-main: #e8f0f4;
+  --text-strong: #f6fbff;
+  --text-muted: #95a8b4;
+  --accent: #e79b58;
+  --accent-soft: #b86d38;
+  --accent-ghost: rgba(231, 155, 88, 0.16);
+  --danger: #e78484;
+  --danger-soft: rgba(114, 28, 28, 0.35);
+  --surface-panel: rgba(9, 13, 18, 0.82);
+  --surface-panel-soft: rgba(10, 14, 20, 0.62);
+  --surface-panel-strong: rgba(8, 12, 18, 0.9);
+  --surface-panel-stronger: rgba(6, 12, 24, 0.88);
+  --surface-panel-strongest: rgba(4, 10, 20, 0.94);
+  --surface-selected: rgba(20, 42, 33, 0.45);
+  --text-on-accent: #fff8f1;
+  --status-connected-bg: rgba(231, 155, 88, 0.35);
+  --status-connected-text: #9ef2ca;
+  --status-disconnected-bg: rgba(124, 138, 162, 0.25);
+  --status-disconnected-text: #c4cfdf;
+  --status-error-bg: rgba(223, 106, 106, 0.22);
+  --status-error-text: #ffb2b2;
+  --surface-glow:
+    radial-gradient(circle at 12% 0%, rgba(231, 155, 88, 0.24), transparent 32%),
+    radial-gradient(circle at 100% 100%, rgba(69, 117, 147, 0.28), transparent 38%),
+    linear-gradient(180deg, rgba(8, 13, 19, 0.98), rgba(8, 13, 19, 0.9));
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg-ink: #f3ece2;
+  --bg-raised: #fffaf4;
+  --bg-soft: #f4ece2;
+  --line: rgba(117, 91, 64, 0.22);
+  --line-strong: rgba(117, 91, 64, 0.36);
+  --text-main: #35271d;
+  --text-strong: #21160f;
+  --text-muted: #655142;
+  --accent: #9e4c25;
+  --accent-soft: #7e3817;
+  --accent-ghost: rgba(158, 76, 37, 0.14);
+  --danger: #a94949;
+  --danger-soft: rgba(196, 95, 95, 0.14);
+  --surface-panel: #fcf7f1;
+  --surface-panel-soft: #f2e9de;
+  --surface-panel-strong: #fffdf9;
+  --surface-panel-stronger: #f8f1e8;
+  --surface-panel-strongest: #efe5d9;
+  --surface-selected: rgba(224, 196, 169, 0.42);
+  --text-on-accent: #fff7f0;
+  --status-connected-bg: rgba(128, 178, 150, 0.22);
+  --status-connected-text: #2c6b4b;
+  --status-disconnected-bg: rgba(120, 126, 142, 0.16);
+  --status-disconnected-text: #5f6474;
+  --status-error-bg: rgba(188, 93, 93, 0.16);
+  --status-error-text: #8e3535;
+  --surface-glow:
+    radial-gradient(circle at 8% 0%, rgba(222, 169, 120, 0.3), transparent 34%),
+    radial-gradient(circle at 100% 100%, rgba(147, 118, 91, 0.16), transparent 36%),
+    linear-gradient(180deg, rgba(252, 247, 242, 0.99), rgba(240, 232, 222, 0.96));
+  --shadow-shell: 0 28px 80px rgba(111, 87, 62, 0.14);
+  --shadow-card: 0 14px 34px rgba(111, 87, 62, 0.09);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface-glow), var(--bg-ink);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 90%);
+  opacity: 0.35;
+}
+
+button,
+textarea,
+input,
+select {
+  font: inherit;
+}

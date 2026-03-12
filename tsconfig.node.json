@@ -1,0 +1,18 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "electron"],
+    "composite": true,
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "electron.vite.config.ts",
+    "scripts/**/*.ts",
+    "test/harness/**/*.ts",
+    "src/shared/**/*.ts",
+    "src/main/**/*.ts",
+    "src/preload/**/*.ts",
+    "src/renderer/src/types/**/*.ts",
+    "src/renderer/src/domain/types.ts"
+  ]
+}

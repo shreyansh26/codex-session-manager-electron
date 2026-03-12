@@ -1,0 +1,86 @@
+{
+  "name": "codex-app-electron",
+  "version": "0.1.0",
+  "description": "Codex Session Monitor Electron app",
+  "main": "out/main/index.js",
+  "author": "",
+  "license": "UNLICENSED",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run --passWithNoTests",
+    "harness:smoke:mock": "tsx ./scripts/harness/smokeMock.ts",
+    "harness:smoke:chronology": "tsx ./scripts/harness/smokeChronology.ts",
+    "harness:smoke:real": "tsx ./scripts/harness/smokeReal.ts",
+    "harness:report": "tsx ./scripts/harness/report.ts",
+    "harness:query": "tsx ./scripts/harness/query.ts",
+    "build": "npm run typecheck && electron-vite build",
+    "dist": "npm run build && electron-builder",
+    "dist:dir": "npm run dist -- --dir",
+    "dist:mac": "npm run dist -- --mac",
+    "dist:mac:dmg": "npm run dist -- --mac dmg"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^9.0.1",
+    "remark-gfm": "^4.0.1",
+    "ws": "^8.19.0",
+    "zod": "^4.3.6",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "24.5.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "5.1.4",
+    "electron": "41.0.0",
+    "electron-builder": "26.8.1",
+    "electron-vite": "5.0.0",
+    "jsdom": "^28.1.0",
+    "playwright": "^1.58.2",
+    "tsx": "^4.21.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.1",
+    "vitest": "4.0.18"
+  },
+  "build": {
+    "appId": "com.codex.sessionmonitor.electron",
+    "productName": "Codex Session Monitor",
+    "copyright": "Copyright © 2026",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "asar": true,
+    "files": [
+      "out/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "icon": "build/icon.icns"
+    }
+  }
+}
