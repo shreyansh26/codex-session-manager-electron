@@ -427,6 +427,39 @@ describe("renderedTranscriptSnapshot helpers", () => {
       historicalReopenRolloutRepairExpectedBrokenOrder
     );
   });
+
+  it("keeps the live-only chronology path stable after the reopen repair", () => {
+    const fixture = chronologyReplayFixtureById["reused-call-id-across-turns"];
+    const messages = applyChronologyReplayFixture(fixture);
+    const expandedWindow = buildExpandedVisibleWindow(messages);
+    const session = buildSession(messages);
+    const { container } = render(
+      <ChatPanel
+        session={session}
+        messages={messages}
+        costDisplay={DEFAULT_COST_DISPLAY}
+        hydrationState={DEFAULT_HYDRATION_STATE}
+        windowOverride={expandedWindow}
+      />
+    );
+
+    const snapshot = buildRenderedTranscriptSnapshot({
+      session,
+      phase: "rollout-idle",
+      mode: "expanded-full",
+      messages,
+      visibleWindow: deriveVisibleWindowSnapshotFromDom({
+        messages,
+        domEntries: extractRenderedTranscriptDomEntries(container)
+      }),
+      domEntries: extractRenderedTranscriptDomEntries(container)
+    });
+
+    expect(snapshot.domEntries.map((entry) => `${entry.role}:${entry.id}`)).toEqual(
+      fixture.expectedOrder
+    );
+    expect(snapshot.storeVsDom.firstMismatchIndex).toBeNull();
+  });
 });
 
 const renderedEntryFromStore = (
