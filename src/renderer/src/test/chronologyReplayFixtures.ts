@@ -618,6 +618,122 @@ export const chronologyReplayFixtures: ChronologyReplayFixture[] = [
     ]
   },
   {
+    id: "existing-session-flat-snapshot-lexicographic-drift",
+    description:
+      "Older CLI sessions can reopen through a lossy flat thread/read snapshot ordered lexicographically by item-* id while rollout history still contains the canonical chronology.",
+    threadId: "thread-cli-reopen-lexicographic-items",
+    steps: [
+      threadRead("flat-thread-read-lexicographic", {
+        createdAt: "2026-01-10T20:34:59.000Z",
+        updatedAt: "2026-01-10T20:35:30.000Z",
+        messages: [
+          {
+            id: "item-1",
+            role: "user",
+            content: "Draft a migration checklist for the timeline parser."
+          },
+          {
+            id: "item-10",
+            role: "assistant",
+            content: "Starting with quick parser diagnostics."
+          },
+          {
+            id: "item-11",
+            role: "assistant",
+            content: "Diagnostics captured. Continuing."
+          },
+          {
+            id: "item-2",
+            role: "assistant",
+            content: "First, I will map message ordering."
+          },
+          {
+            id: "item-3",
+            role: "user",
+            content: "Also include rollout recovery."
+          }
+        ]
+      }),
+      rollout("canonical-rollout-history", [
+        {
+          kind: "message",
+          id: "item-1",
+          role: "user",
+          content: "Draft a migration checklist for the timeline parser.",
+          createdAt: "2026-01-10T20:34:43.100Z",
+          sourceType: "turn_message"
+        },
+        {
+          kind: "message",
+          id: "item-2",
+          role: "assistant",
+          content: "First, I will map message ordering.",
+          createdAt: "2026-01-10T20:34:47.210Z",
+          sourceType: "response_item"
+        },
+        {
+          kind: "message",
+          id: "item-3",
+          role: "user",
+          content: "Also include rollout recovery.",
+          createdAt: "2026-01-10T20:34:50.904Z",
+          sourceType: "turn_message"
+        },
+        {
+          kind: "message",
+          id: "item-10",
+          role: "assistant",
+          content: "Starting with quick parser diagnostics.",
+          createdAt: "2026-01-10T20:35:11.022Z",
+          sourceType: "response_item"
+        },
+        {
+          kind: "message",
+          id: "item-11",
+          role: "assistant",
+          content: "Diagnostics captured. Continuing.",
+          createdAt: "2026-01-10T20:35:18.491Z",
+          sourceType: "response_item"
+        }
+      ])
+    ],
+    expectedOrder: [
+      "user:item-1",
+      "assistant:item-2",
+      "user:item-3",
+      "assistant:item-10",
+      "assistant:item-11"
+    ],
+    expectedVisibleEntries: [
+      {
+        id: "item-1",
+        role: "user",
+        contentIncludes: "Draft a migration checklist for the timeline parser."
+      },
+      {
+        id: "item-2",
+        role: "assistant",
+        contentIncludes: "First, I will map message ordering."
+      },
+      {
+        id: "item-3",
+        role: "user",
+        contentIncludes: "Also include rollout recovery."
+      },
+      {
+        id: "item-10",
+        role: "assistant",
+        contentIncludes: "Starting with quick parser diagnostics."
+      },
+      {
+        id: "item-11",
+        role: "assistant",
+        contentIncludes: "Diagnostics captured. Continuing."
+      }
+    ],
+    expectedToolBubbles: []
+  },
+  {
     id: "stale-refresh-pulls-old-tool-upward",
     description:
       "A stale thread/read refresh must not pull an older tool bubble above a newer user or assistant turn.",
