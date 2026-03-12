@@ -1266,7 +1266,6 @@ const stripCollapsedTurnHistoryShadow = (
     }
     return isEquivalentServerMessage(message, candidate);
   };
-
   return existing.filter((message) => {
     if (message.chronologySource !== "turn" || message.role === "user") {
       return true;
@@ -1291,7 +1290,6 @@ const stripCollapsedTurnHistoryShadow = (
     if (!hasRolloutReplacement) {
       return true;
     }
-
     return currentTimestampMs < earliestRolloutTimestampMs;
   });
 };

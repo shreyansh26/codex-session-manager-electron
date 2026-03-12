@@ -1197,8 +1197,6 @@ describe("useAppStore message upsert behavior", () => {
     expect(messageRoleIdOrder(merged)).toEqual(["user:item-user-1", "tool:call-live-1"]);
     expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
   });
-
-
   it("replays mixed live+snapshot+rollout convergence from the shared chronology corpus", () => {
     const fixture = chronologyReplayFixtureById["live-snapshot-rollout-tool-convergence"];
     const messages = applyChronologyReplayFixture(fixture);
