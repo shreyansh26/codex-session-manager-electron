@@ -19,8 +19,16 @@ import {
   summarizeRoleRuns,
   toRenderedTranscriptStoreEntries
 } from "../services/renderedTranscriptSnapshot";
+import { __TEST_ONLY__ as storeTest } from "../state/useAppStore";
 import { chronologyReplayFixtureById } from "./chronologyReplayFixtures";
 import { applyChronologyReplayFixture } from "./chronologyReplayHarness";
+import {
+  historicalReopenRolloutRepairBaseMessages,
+  historicalReopenRolloutRepairExpectedBrokenOrder,
+  historicalReopenRolloutRepairExpectedFixedOrder,
+  historicalReopenRolloutRepairRolloutMessages,
+  historicalReopenRolloutRepairSession
+} from "./reopenedSessionDiagnosticFixtures";
 
 const DEFAULT_COST_DISPLAY: SessionCostDisplay = {
   costAvailable: false
@@ -382,6 +390,42 @@ describe("renderedTranscriptSnapshot helpers", () => {
 
     expect(snapshot.storeVsDom.firstMismatchIndex).toBe(0);
     expect(snapshot.storeVsDom.actualOrder).not.toEqual(snapshot.storeVsDom.expectedOrder);
+  });
+
+  it("renders repaired rollout chronology without leaving stale turn-reasoning blocks at the tail", () => {
+    const merged = storeTest.mergeRolloutEnrichmentMessages(
+      historicalReopenRolloutRepairBaseMessages,
+      historicalReopenRolloutRepairRolloutMessages
+    );
+    const expandedWindow = buildExpandedVisibleWindow(merged);
+    const { container } = render(
+      <ChatPanel
+        session={historicalReopenRolloutRepairSession}
+        messages={merged}
+        costDisplay={DEFAULT_COST_DISPLAY}
+        hydrationState={DEFAULT_HYDRATION_STATE}
+        windowOverride={expandedWindow}
+      />
+    );
+
+    const snapshot = buildRenderedTranscriptSnapshot({
+      session: historicalReopenRolloutRepairSession,
+      phase: "rollout-idle",
+      mode: "expanded-full",
+      messages: merged,
+      visibleWindow: deriveVisibleWindowSnapshotFromDom({
+        messages: merged,
+        domEntries: extractRenderedTranscriptDomEntries(container)
+      }),
+      domEntries: extractRenderedTranscriptDomEntries(container)
+    });
+
+    expect(snapshot.domEntries.map((entry) => `${entry.role}:${entry.id}`)).toEqual(
+      historicalReopenRolloutRepairExpectedFixedOrder
+    );
+    expect(snapshot.domEntries.map((entry) => `${entry.role}:${entry.id}`)).not.toEqual(
+      historicalReopenRolloutRepairExpectedBrokenOrder
+    );
   });
 });
 

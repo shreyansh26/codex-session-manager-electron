@@ -12,6 +12,12 @@ import {
   type ExpectedToolBubble
 } from "./chronologyReplayFixtures";
 import {
+  historicalReopenRolloutRepairBaseMessages,
+  historicalReopenRolloutRepairExpectedBrokenOrder,
+  historicalReopenRolloutRepairExpectedFixedOrder,
+  historicalReopenRolloutRepairRolloutMessages
+} from "./reopenedSessionDiagnosticFixtures";
+import {
   applyChronologyReplayFixture,
   messageRoleIdOrder
 } from "./chronologyReplayHarness";
@@ -913,6 +919,20 @@ describe("useAppStore message upsert behavior", () => {
       existingSessionChronologyFixture.expectedNumericSnapshotOrder
     );
     expect(repaired.map((message) => message.timelineOrder)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("drops superseded turn reasoning blocks when rollout chronology repairs a reopened historical session", () => {
+    const broken = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      historicalReopenRolloutRepairBaseMessages,
+      historicalReopenRolloutRepairRolloutMessages
+    );
+
+    expect(messageRoleIdOrder(broken)).toEqual(
+      historicalReopenRolloutRepairExpectedFixedOrder
+    );
+    expect(messageRoleIdOrder(broken)).not.toEqual(
+      historicalReopenRolloutRepairExpectedBrokenOrder
+    );
   });
 
   it("replays mixed live+snapshot+rollout convergence from the shared chronology corpus", () => {
