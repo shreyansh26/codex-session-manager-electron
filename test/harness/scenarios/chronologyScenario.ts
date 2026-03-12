@@ -25,93 +25,95 @@ export const runChronologyScenario = async (page: MockScenarioPage): Promise<voi
       }).__CODEX_RENDERER_HOOKS__;
       const state = hooks?.getStateSnapshot?.() as
         | {
-            sessions?: Array<{ title?: string }>;
+            sessions?: Array<{ title?: string; threadId?: string }>;
           }
         | undefined;
       return Boolean(
-        state?.sessions?.some((session) =>
-          session.title?.includes("Tool chronology regression fixture")
-        )
+        state?.sessions?.some((session) => session.threadId === "thread-mock-003")
       );
     },
     "Chronology fixture session did not hydrate"
   );
+  const artifact = await page.evaluate?.(
+    async () => {
+      const threadId = "thread-mock-003";
+      const expectedOrder = [
+        "user-turn-1::user::",
+        "call-reused::tool::tool_call::2026-03-08T09:10:01.000Z",
+        "user-turn-2::user::",
+        "call-reused::tool::tool_call::2026-03-08T09:11:01.000Z"
+      ];
+      const hooks = (window as Window & {
+        __CODEX_RENDERER_HOOKS__?: {
+          getStateSnapshot?: () => unknown;
+          pushStateSnapshot?: (label: string, state?: unknown) => Promise<void>;
+          captureHistoricalSessionTranscript?: (sessionKey: string) => Promise<unknown>;
+        };
+      }).__CODEX_RENDERER_HOOKS__;
+      const state = hooks?.getStateSnapshot?.() as
+        | {
+            sessions?: Array<{ key?: string; threadId?: string }>;
+          }
+        | undefined;
+      const sessionKey = state?.sessions?.find((session) => session.threadId === threadId)?.key;
+      if (!hooks?.captureHistoricalSessionTranscript || !sessionKey) {
+        return null;
+      }
 
-  await page.evaluate?.(() => {
-    const folderToggle =
-      (document.querySelector(
-        'button[aria-label="Expand folder codex-app-electron"]'
-      ) as HTMLButtonElement | null) ??
-      (document.querySelector(
-        'button[aria-label="Collapse folder codex-app-electron"]'
-      ) as HTMLButtonElement | null);
-    if (folderToggle?.getAttribute("aria-label")?.startsWith("Expand")) {
-      folderToggle.click();
+      const capture = (await hooks.captureHistoricalSessionTranscript(sessionKey)) as {
+        captures?: Array<{
+          phase?: string;
+          mountedVisible?: {
+            storeVsDom?: { firstMismatchIndex?: number | null };
+          };
+          expandedFull?: {
+            domEntries?: Array<{ renderKey?: string; textPreview?: string; toolStatus?: string | null }>;
+            storeVsDom?: { firstMismatchIndex?: number | null };
+          };
+        }>;
+      } | null;
+      await hooks.pushStateSnapshot?.("reopened-session-transcript", capture);
+
+      const expandedOrders = (capture?.captures ?? []).map((phaseCapture) => ({
+        phase: phaseCapture.phase ?? "unknown",
+        order: (phaseCapture.expandedFull?.domEntries ?? []).map((entry) => entry.renderKey ?? "")
+      }));
+      const mismatches = (capture?.captures ?? []).map((phaseCapture) => ({
+        phase: phaseCapture.phase ?? "unknown",
+        mountedMismatch: phaseCapture.mountedVisible?.storeVsDom?.firstMismatchIndex ?? null,
+        expandedMismatch: phaseCapture.expandedFull?.storeVsDom?.firstMismatchIndex ?? null
+      }));
+      const rolloutIdle = (capture?.captures ?? []).find(
+        (phaseCapture) => phaseCapture.phase === "rollout-idle"
+      );
+
+      return {
+        capture,
+        expandedOrders,
+        mismatches,
+        rolloutIdleOutput: (rolloutIdle?.expandedFull?.domEntries ?? [])
+          .map((entry) => entry.textPreview ?? "")
+          .join(" "),
+        matchesExpected:
+          expandedOrders.every(
+            (entry) => entry.order.join(" | ") === expectedOrder.join(" | ")
+          ) &&
+          mismatches.every(
+            (entry) => entry.mountedMismatch === null && entry.expandedMismatch === null
+          )
+      };
     }
-  });
-  await waitFor(
-    () =>
-      Boolean(
-        document.querySelector(
-          'button[title="Tool chronology regression fixture (thread-mock-003)"]'
-        )
-      ),
-    "Chronology fixture session button did not appear"
-  );
-  await page.click?.(
-    'button[title="Tool chronology regression fixture (thread-mock-003)"]'
   );
 
-  await waitFor(
-    () => document.body.textContent?.includes("Tool chronology regression fixture"),
-    "Selecting the chronology fixture did not load the thread"
-  );
-
-  await page.click?.(".chat-panel__history-button");
-  await waitFor(
-    () => !document.querySelector(".chat-panel__history-button"),
-    "Chronology fixture older-history control did not clear"
-  );
-
-  await waitFor(
-    () => {
-      const bubbles = Array.from(
-        document.querySelectorAll<HTMLLIElement>('li[data-message-id="call-reused"]')
-      );
-      return (
-        bubbles.length === 2 &&
-        bubbles.every((bubble) => bubble.querySelector(".bubble__tool-card")) &&
-        document.body.textContent?.includes("/Users/demo/project-1") &&
-        document.body.textContent?.includes("/Users/demo/project-2")
-      );
-    },
-    "Chronology fixture did not render both tool bubbles"
-  );
-
-  const renderedOrder = await page.evaluate?.(() =>
-    Array.from(document.querySelectorAll<HTMLLIElement>("li[data-message-id]"))
-      .map((item) => {
-        const messageId = item.dataset.messageId ?? "";
-        const role = (["user", "assistant", "tool", "system"] as const).find((candidate) =>
-          item.classList.contains(`bubble--${candidate}`)
-        );
-        return messageId && role ? `${role}:${messageId}` : null;
-      })
-      .filter((value): value is string => value !== null)
-  );
-
-  if (
-    !renderedOrder ||
-    renderedOrder.join(" | ") !==
-      [
-        "user:user-turn-1",
-        "tool:call-reused",
-        "user:user-turn-2",
-        "tool:call-reused"
-      ].join(" | ")
-  ) {
+  if (!artifact?.matchesExpected) {
     throw new Error(
-      `Rendered chronology order mismatch: ${(renderedOrder ?? []).join(" | ")}`
+      `Rendered chronology capture mismatch: ${JSON.stringify(artifact, null, 2)}`
     );
+  }
+  if (!artifact.rolloutIdleOutput.includes("project-1")) {
+    throw new Error("Rollout-idle capture is missing the first tool output.");
+  }
+  if (!artifact.rolloutIdleOutput.includes("project-2")) {
+    throw new Error("Rollout-idle capture is missing the second tool output.");
   }
 };

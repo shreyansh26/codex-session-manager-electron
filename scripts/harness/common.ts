@@ -112,6 +112,22 @@ export const readRunnerState = async (runnerStatePath: string) => {
   }
 };
 
+export const readNamedSnapshot = async (runDirectory: string, label: string) => {
+  try {
+    const fileName = `${label
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9._-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^[.-]+|[.-]+$/g, "")}.json`;
+    return stateSnapshotSchema.parse(
+      JSON.parse(await readFile(join(runDirectory, "snapshots", fileName), "utf8"))
+    );
+  } catch {
+    return null;
+  }
+};
+
 export const getNestedValue = (value: unknown, pathExpression: string): unknown => {
   return pathExpression.split(".").reduce<unknown>((current, segment) => {
     if (!segment) {

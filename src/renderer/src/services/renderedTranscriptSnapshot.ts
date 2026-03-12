@@ -93,6 +93,25 @@ export const renderedTranscriptSnapshotSchema = z.object({
 });
 export type RenderedTranscriptSnapshot = z.infer<typeof renderedTranscriptSnapshotSchema>;
 
+export const renderedTranscriptPhaseCaptureSchema = z.object({
+  phase: renderedTranscriptPhaseSchema,
+  mountedVisible: renderedTranscriptSnapshotSchema,
+  expandedFull: renderedTranscriptSnapshotSchema
+});
+export type RenderedTranscriptPhaseCapture = z.infer<
+  typeof renderedTranscriptPhaseCaptureSchema
+>;
+
+export const reopenedSessionTranscriptCaptureSchema = z.object({
+  sessionKey: z.string().min(1),
+  threadId: z.string().min(1),
+  deviceId: z.string().min(1),
+  captures: z.array(renderedTranscriptPhaseCaptureSchema).min(1)
+});
+export type ReopenedSessionTranscriptCapture = z.infer<
+  typeof reopenedSessionTranscriptCaptureSchema
+>;
+
 const truncatePreview = (value: string): string => {
   const normalized = value.replace(/\s+/g, " ").trim();
   if (normalized.length <= PREVIEW_MAX_CHARS) {
@@ -175,6 +194,30 @@ export const buildExpandedVisibleWindow = (
     visibleMessageCount: messages.length,
     anchorMessageKey: null
   });
+
+export const deriveVisibleWindowSnapshotFromDom = (params: {
+  messages: ChatMessage[];
+  domEntries: RenderedTranscriptDomEntry[];
+}): RenderedTranscriptVisibleWindow => {
+  const { messages, domEntries } = params;
+  const storeEntries = toRenderedTranscriptStoreEntries(messages);
+  const visibleRenderKeys = domEntries.map((entry) => entry.renderKey);
+  const firstRenderKey = visibleRenderKeys[0] ?? null;
+  const startIndex =
+    firstRenderKey === null
+      ? Math.max(0, messages.length - visibleRenderKeys.length)
+      : Math.max(
+          0,
+          storeEntries.findIndex((entry) => entry.renderKey === firstRenderKey)
+        );
+
+  return renderedTranscriptVisibleWindowSchema.parse({
+    hiddenMessageCount: startIndex,
+    startIndex,
+    anchorMessageKey: firstRenderKey,
+    visibleRenderKeys
+  });
+};
 
 const readDatasetValue = (value: string | undefined): string | null => {
   const trimmed = value?.trim() ?? "";

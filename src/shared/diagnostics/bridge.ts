@@ -35,5 +35,6 @@ export interface HarnessPreloadBridge {
 
 export interface HarnessRendererHooks {
   getStateSnapshot: () => unknown;
-  pushStateSnapshot: (label: string) => Promise<void>;
+  pushStateSnapshot: (label: string, state?: unknown) => Promise<void>;
+  captureHistoricalSessionTranscript?: (sessionKey: string) => Promise<unknown>;
 }

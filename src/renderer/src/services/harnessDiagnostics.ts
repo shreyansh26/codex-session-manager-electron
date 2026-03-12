@@ -24,6 +24,7 @@ export const installRendererDiagnostics = (options: {
   windowLike: GlobalWindow;
   consoleLike?: ConsoleLike;
   getStateSnapshot: () => unknown;
+  captureHistoricalSessionTranscript?: (sessionKey: string) => Promise<unknown>;
 }): (() => void) => {
   const bridge = options.windowLike[HARNESS_PRELOAD_GLOBAL];
   const consoleLike = options.consoleLike ?? console;
@@ -31,9 +32,15 @@ export const installRendererDiagnostics = (options: {
 
   const hooks: HarnessRendererHooks = {
     getStateSnapshot: () => options.getStateSnapshot(),
-    pushStateSnapshot: async (label: string) => {
-      await bridge?.snapshotState(label, options.getStateSnapshot());
-    }
+    pushStateSnapshot: async (label: string, state?: unknown) => {
+      await bridge?.snapshotState(label, state ?? options.getStateSnapshot());
+    },
+    ...(options.captureHistoricalSessionTranscript
+      ? {
+          captureHistoricalSessionTranscript: async (sessionKey: string) =>
+            options.captureHistoricalSessionTranscript?.(sessionKey) ?? null
+        }
+      : {})
   };
 
   Object.defineProperty(options.windowLike, HARNESS_RENDERER_GLOBAL, {
