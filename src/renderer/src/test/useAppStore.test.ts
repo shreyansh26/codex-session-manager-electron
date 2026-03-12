@@ -767,8 +767,8 @@ describe("useAppStore composer preference helpers", () => {
         effort: undefined
       })
     ).toEqual({
-      model: "gpt-5.3-codex",
-      thinkingEffort: "xhigh"
+      model: "gpt-5.4",
+      thinkingEffort: "high"
     });
   });
 
@@ -823,8 +823,8 @@ describe("useAppStore composer preference helpers", () => {
   it("keeps existing model when no explicit model override is provided", () => {
     const initial: Record<string, ComposerPreference> = {
       "device-1::thread-1": {
-        model: "gpt-5.3-codex",
-        thinkingEffort: "xhigh"
+        model: "gpt-5.4",
+        thinkingEffort: "high"
       }
     };
     const next = __TEST_ONLY__.upsertComposerPreference(
@@ -836,8 +836,8 @@ describe("useAppStore composer preference helpers", () => {
 
     expect(next).toBe(initial);
     expect(next["device-1::thread-1"]).toEqual({
-      model: "gpt-5.3-codex",
-      thinkingEffort: "xhigh"
+      model: "gpt-5.4",
+      thinkingEffort: "high"
     });
   });
 });

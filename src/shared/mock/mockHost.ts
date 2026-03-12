@@ -31,8 +31,8 @@ interface MockState {
 }
 
 export const MOCK_CONNECTED_AT_MS = Date.UTC(2026, 2, 12, 9, 30, 0, 0);
-const DEFAULT_MODEL = "gpt-5.3-codex";
-const DEFAULT_MODELS = ["gpt-5.3-codex", "gpt-5.2", "gpt-5.1-codex-mini"];
+const DEFAULT_MODEL = "gpt-5.4";
+const DEFAULT_MODELS = ["gpt-5.4", "gpt-5.2", "gpt-5.1-codex-mini"];
 
 const BASE_THREADS: Record<MockState["kind"], MockThread[]> = {
   local: [
