@@ -764,4 +764,45 @@ describe("parseMessagesFromThread", () => {
       existingSessionChronologyFixture.expectedNumericSnapshotOrder
     );
   });
+
+  it("prefers recovered rollout chronology when opening a historical existing session later", async () => {
+    const snapshotMessages = codexApiTest.parseMessagesFromThread(
+      "device-1",
+      existingSessionChronologyFixture.threadId,
+      existingSessionChronologyFixture.threadReadSnapshot
+    );
+    const rolloutMessages = existingSessionChronologyFixture.rolloutRecords
+      .map((record) =>
+        codexApiTest.toTimelineMessageFromRolloutRecord(
+          "device-1",
+          existingSessionChronologyFixture.threadId,
+          record
+        )
+      )
+      .filter((message): message is ChatMessage => message !== null);
+
+    const recovered = await codexApiTest.recoverRolloutHistoryForThread(
+      mockDevice(),
+      existingSessionChronologyFixture.threadId,
+      null,
+      "2026-01-10T16:12:55.000Z",
+      {
+        findLatestRolloutPath: async () =>
+          `/Users/mock/.codex/sessions/2026/01/10/rollout-${existingSessionChronologyFixture.threadId}.jsonl`,
+        readRolloutMessages: async (_device, _threadId, path) =>
+          path ? rolloutMessages : []
+      }
+    );
+
+    const openedMessages =
+      recovered.messages.length > 0 ? recovered.messages : snapshotMessages;
+
+    expect(snapshotMessages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedNumericSnapshotOrder
+    );
+    expect(recovered.rolloutPath).toContain(existingSessionChronologyFixture.threadId);
+    expect(openedMessages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      existingSessionChronologyFixture.expectedCanonicalOrder
+    );
+  });
 });
