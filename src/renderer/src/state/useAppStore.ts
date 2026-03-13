@@ -1231,6 +1231,21 @@ const stripCollapsedTurnHistoryShadow = (
       return true;
     }
 
+    if (message.role === "assistant" && !message.eventType) {
+      return currentTimestampMs < earliestRolloutTimestampMs;
+    }
+
+    const hasRolloutReplacement = enrichment.some(
+      (candidate) =>
+        candidate.chronologySource === "rollout" &&
+        candidate.role !== "user" &&
+        isEquivalentServerMessage(message, candidate)
+    );
+
+    if (!hasRolloutReplacement) {
+      return true;
+    }
+
     return currentTimestampMs < earliestRolloutTimestampMs;
   });
 };

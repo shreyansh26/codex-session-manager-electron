@@ -1010,6 +1010,47 @@ describe("useAppStore message upsert behavior", () => {
     );
   });
 
+  it("keeps turn-only non-user messages when rollout has no equivalent replacement", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Write the updated plan to plan_message_chronology_v3.md"
+        }),
+        buildMessage({
+          id: "item-activity-2",
+          role: "assistant",
+          eventType: "activity",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Running in the sandboxed workspace"
+        })
+      ],
+      [
+        buildMessage({
+          id: "message-live-1",
+          role: "assistant",
+          chronologySource: "rollout",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:07.798Z",
+          content: "Ledger Snapshot: The reopened-session bug is not actually fixed."
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual([
+      "user:item-user-1",
+      "assistant:message-live-1",
+      "assistant:item-activity-2"
+    ]);
+    expect(merged.find((message) => message.id === "item-activity-2")).toBeDefined();
+  });
+
   it("replays mixed live+snapshot+rollout convergence from the shared chronology corpus", () => {
     const fixture = chronologyReplayFixtureById["live-snapshot-rollout-tool-convergence"];
     const messages = applyChronologyReplayFixture(fixture);
