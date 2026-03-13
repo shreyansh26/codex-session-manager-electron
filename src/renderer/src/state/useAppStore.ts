@@ -329,6 +329,37 @@ const toolCallSignature = (message: ChatMessage): string =>
     message.toolCall?.status ?? ""
   ].join("|");
 
+const hasCompatibleToolCallShadow = (
+  message: ChatMessage,
+  candidate: ChatMessage
+): boolean => {
+  const messageOutput = message.toolCall?.output?.trim() ?? "";
+  const candidateOutput = candidate.toolCall?.output?.trim() ?? "";
+
+  if (
+    messageOutput.length > 0 &&
+    candidateOutput.length > 0 &&
+    !candidateOutput.includes(messageOutput)
+  ) {
+    return false;
+  }
+
+  const messageStatus = message.toolCall?.status ?? "";
+  const candidateStatus = candidate.toolCall?.status ?? "";
+
+  if (
+    messageStatus.length > 0 &&
+    candidateStatus.length > 0 &&
+    messageStatus !== candidateStatus &&
+    !(messageStatus === "pending" && candidateStatus === "completed") &&
+    !(messageStatus === "running" && candidateStatus === "completed")
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 const messageIdentityKey = (message: ChatMessage): string =>
   [
     message.id,
@@ -1221,6 +1252,22 @@ const stripCollapsedTurnHistoryShadow = (
     return existing;
   }
 
+  const hasRolloutShadowReplacement = (
+    message: ChatMessage,
+    candidate: ChatMessage
+  ): boolean => {
+    if (message.eventType === "tool_call" && candidate.eventType === "tool_call") {
+      return (
+        message.role === candidate.role &&
+        imageSignature(message) === imageSignature(candidate) &&
+        message.toolCall?.name?.trim() === candidate.toolCall?.name?.trim() &&
+        message.toolCall?.input?.trim() === candidate.toolCall?.input?.trim() &&
+        hasCompatibleToolCallShadow(message, candidate)
+      );
+    }
+    return isEquivalentServerMessage(message, candidate);
+  };
+
   return existing.filter((message) => {
     if (message.chronologySource !== "turn" || message.role === "user") {
       return true;
@@ -1228,6 +1275,21 @@ const stripCollapsedTurnHistoryShadow = (
 
     const currentTimestampMs = Date.parse(message.createdAt);
     if (!Number.isFinite(currentTimestampMs)) {
+      return true;
+    }
+
+    if (message.role === "assistant" && !message.eventType) {
+      return currentTimestampMs < earliestRolloutTimestampMs;
+    }
+
+    const hasRolloutReplacement = enrichment.some(
+      (candidate) =>
+        candidate.chronologySource === "rollout" &&
+        candidate.role !== "user" &&
+        hasRolloutShadowReplacement(message, candidate)
+    );
+
+    if (!hasRolloutReplacement) {
       return true;
     }
 
