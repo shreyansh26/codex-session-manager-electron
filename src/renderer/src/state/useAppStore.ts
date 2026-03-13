@@ -329,6 +329,37 @@ const toolCallSignature = (message: ChatMessage): string =>
     message.toolCall?.status ?? ""
   ].join("|");
 
+const hasCompatibleToolCallShadow = (
+  message: ChatMessage,
+  candidate: ChatMessage
+): boolean => {
+  const messageOutput = message.toolCall?.output?.trim() ?? "";
+  const candidateOutput = candidate.toolCall?.output?.trim() ?? "";
+
+  if (
+    messageOutput.length > 0 &&
+    candidateOutput.length > 0 &&
+    !candidateOutput.includes(messageOutput)
+  ) {
+    return false;
+  }
+
+  const messageStatus = message.toolCall?.status ?? "";
+  const candidateStatus = candidate.toolCall?.status ?? "";
+
+  if (
+    messageStatus.length > 0 &&
+    candidateStatus.length > 0 &&
+    messageStatus !== candidateStatus &&
+    !(messageStatus === "pending" && candidateStatus === "completed") &&
+    !(messageStatus === "running" && candidateStatus === "completed")
+  ) {
+    return false;
+  }
+
+  return true;
+};
+
 const messageIdentityKey = (message: ChatMessage): string =>
   [
     message.id,
@@ -1230,7 +1261,9 @@ const stripCollapsedTurnHistoryShadow = (
         message.role === candidate.role &&
         normalizeMessageText(message.content) === normalizeMessageText(candidate.content) &&
         imageSignature(message) === imageSignature(candidate) &&
-        toolCallSignature(message) === toolCallSignature(candidate)
+        message.toolCall?.name?.trim() === candidate.toolCall?.name?.trim() &&
+        message.toolCall?.input?.trim() === candidate.toolCall?.input?.trim() &&
+        hasCompatibleToolCallShadow(message, candidate)
       );
     }
     return isEquivalentServerMessage(message, candidate);
