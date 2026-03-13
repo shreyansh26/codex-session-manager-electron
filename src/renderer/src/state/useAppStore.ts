@@ -1221,6 +1221,21 @@ const stripCollapsedTurnHistoryShadow = (
     return existing;
   }
 
+  const hasRolloutShadowReplacement = (
+    message: ChatMessage,
+    candidate: ChatMessage
+  ): boolean => {
+    if (message.eventType === "tool_call" && candidate.eventType === "tool_call") {
+      return (
+        message.role === candidate.role &&
+        normalizeMessageText(message.content) === normalizeMessageText(candidate.content) &&
+        imageSignature(message) === imageSignature(candidate) &&
+        toolCallSignature(message) === toolCallSignature(candidate)
+      );
+    }
+    return isEquivalentServerMessage(message, candidate);
+  };
+
   return existing.filter((message) => {
     if (message.chronologySource !== "turn" || message.role === "user") {
       return true;
@@ -1239,7 +1254,7 @@ const stripCollapsedTurnHistoryShadow = (
       (candidate) =>
         candidate.chronologySource === "rollout" &&
         candidate.role !== "user" &&
-        isEquivalentServerMessage(message, candidate)
+        hasRolloutShadowReplacement(message, candidate)
     );
 
     if (!hasRolloutReplacement) {
