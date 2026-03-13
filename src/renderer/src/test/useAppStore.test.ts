@@ -1148,6 +1148,57 @@ describe("useAppStore message upsert behavior", () => {
     expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
   });
 
+  it("drops turn tool-call shadow when rollout has canonical content with appended output", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Inspect CONTINUITY.md"
+        }),
+        buildMessage({
+          id: "item-tool-2",
+          role: "tool",
+          eventType: "tool_call",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Tool: exec_command\nInput: sed -n '1,220p' CONTINUITY.md",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            status: "running"
+          }
+        })
+      ],
+      [
+        buildMessage({
+          id: "call-live-1",
+          role: "tool",
+          chronologySource: "rollout",
+          eventType: "tool_call",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:08.687Z",
+          content:
+            "Tool: exec_command\nInput: sed -n '1,220p' CONTINUITY.md\nOutput: # CONTINUITY\n...",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            output: "# CONTINUITY\n...",
+            status: "completed"
+          }
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual(["user:item-user-1", "tool:call-live-1"]);
+    expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
+  });
+
+
   it("replays mixed live+snapshot+rollout convergence from the shared chronology corpus", () => {
     const fixture = chronologyReplayFixtureById["live-snapshot-rollout-tool-convergence"];
     const messages = applyChronologyReplayFixture(fixture);

@@ -1259,7 +1259,6 @@ const stripCollapsedTurnHistoryShadow = (
     if (message.eventType === "tool_call" && candidate.eventType === "tool_call") {
       return (
         message.role === candidate.role &&
-        normalizeMessageText(message.content) === normalizeMessageText(candidate.content) &&
         imageSignature(message) === imageSignature(candidate) &&
         message.toolCall?.name?.trim() === candidate.toolCall?.name?.trim() &&
         message.toolCall?.input?.trim() === candidate.toolCall?.input?.trim() &&
