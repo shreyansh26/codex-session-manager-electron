@@ -569,6 +569,10 @@ const classifyFirstBadLayer = (params: {
   };
 
   const notes: string[] = [];
+  const rolloutAppliedImprovesCoverage =
+    coverage.rolloutApplied.tool > coverage.baseLoaded.tool ||
+    coverage.rolloutApplied.user > coverage.baseLoaded.user ||
+    coverage.rolloutApplied.total > coverage.baseLoaded.total;
   if (params.rolloutApplied.expandedFull.storeVsDom.firstMismatchIndex !== null) {
     notes.push("Expanded rollout-applied store/DOM mismatch detected.");
     return { firstBadLayer: "dom_keying_loss", notes, diffs, coverage };
@@ -581,9 +585,12 @@ const classifyFirstBadLayer = (params: {
     return { firstBadLayer: "visible_window_loss", notes, diffs, coverage };
   }
   if (
-    coverage.rolloutParsed.tool < coverage.baseLoaded.tool ||
-    coverage.rolloutParsed.user < coverage.baseLoaded.user ||
-    coverage.rolloutParsed.total < coverage.baseLoaded.total
+    !rolloutAppliedImprovesCoverage &&
+    (
+      coverage.rolloutParsed.tool < coverage.baseLoaded.tool ||
+      coverage.rolloutParsed.user < coverage.baseLoaded.user ||
+      coverage.rolloutParsed.total < coverage.baseLoaded.total
+    )
   ) {
     notes.push("Rollout-parsed coverage regressed versus base-loaded.");
     return { firstBadLayer: "rollout_parse_loss", notes, diffs, coverage };

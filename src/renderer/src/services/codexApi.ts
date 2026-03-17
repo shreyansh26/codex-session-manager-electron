@@ -1423,6 +1423,9 @@ const buildCompactRolloutPythonScript = (): string =>
   [
     "import hashlib, json, re, sys",
     "path = sys.argv[1]",
+    "MAX_MESSAGE_CHARS = 400",
+    "MAX_TOOL_OUTPUT_CHARS = 800",
+    "MAX_TIMELINE_ENTRIES = 48",
     "tool_entries = {}",
     "message_entries = {}",
     "order_counter = 0",
@@ -1452,7 +1455,7 @@ const buildCompactRolloutPythonScript = (): string =>
     "    text = re.sub(r'\\x1b\\[[0-?]*[ -/]*[@-~]', '', text)",
     "    text = text.replace('\\r', '')",
     "    text = re.sub(r'\\n{3,}', '\\n\\n', text).strip()",
-    "    return text if len(text) <= 4000 else text[:4000] + '\\n...[truncated]'",
+    "    return text if len(text) <= MAX_TOOL_OUTPUT_CHARS else text[:MAX_TOOL_OUTPUT_CHARS] + '\\n...[truncated]'",
     "",
     "def fmt_search_action(action):",
     "    if not isinstance(action, dict):",
@@ -1500,7 +1503,7 @@ const buildCompactRolloutPythonScript = (): string =>
     "    if role not in {'user', 'assistant'}:",
     "        return",
     "    text = content if isinstance(content, str) else ''",
-    "    text = text if len(text) <= 8000 else text[:8000] + '\\n...[truncated]'",
+    "    text = text if len(text) <= MAX_MESSAGE_CHARS else text[:MAX_MESSAGE_CHARS] + '\\n...[truncated]'",
     "    normalized_images = []",
     "    if isinstance(raw_images, list):",
     "        for raw in raw_images:",
@@ -1633,6 +1636,8 @@ const buildCompactRolloutPythonScript = (): string =>
     "",
     "timeline = list(message_entries.values()) + list(tool_entries.values())",
     "timeline.sort(key=lambda entry: ((entry.get('createdAt') or ''), int(entry.get('order') or 0)))",
+    "if len(timeline) > MAX_TIMELINE_ENTRIES:",
+    "    timeline = timeline[-MAX_TIMELINE_ENTRIES:]",
     "print(json.dumps(timeline))"
   ].join("\n");
 
