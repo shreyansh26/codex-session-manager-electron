@@ -1143,8 +1143,9 @@ const mergeRolloutEnrichmentMessages = (
   enrichment: ChatMessage[]
 ): ChatMessage[] => {
   const normalizedEnrichment = normalizeSnapshotMessages(enrichment);
+  const dedupedExisting = dedupeMessagesByIdentity(existing);
   const normalizedExisting = stripCollapsedTurnHistoryShadow(
-    stripSupersededTurnReasoning(dedupeMessagesByIdentity(existing), normalizedEnrichment),
+    stripSupersededTurnReasoning(dedupedExisting, normalizedEnrichment),
     normalizedEnrichment
   );
   const mergedByIdentity = new Map<string, ChatMessage>();
@@ -1192,9 +1193,15 @@ const mergeRolloutEnrichmentMessages = (
     );
   }
 
-  return reanchorCollapsedTurnMessages(
+  const merged = reanchorCollapsedTurnMessages(
     dedupeEquivalentServerMessages([...mergedByIdentity.values()])
   ).sort(sortMessagesAscending);
+
+  if (shouldKeepBaseSnapshotDuringLossyRollout(dedupedExisting, normalizedEnrichment, merged)) {
+    return dedupeEquivalentServerMessages(dedupedExisting).sort(sortMessagesAscending);
+  }
+
+  return merged;
 };
 
 const stripSupersededTurnReasoning = (
@@ -1287,11 +1294,88 @@ const stripCollapsedTurnHistoryShadow = (
         hasRolloutShadowReplacement(message, candidate)
     );
 
-    if (!hasRolloutReplacement) {
+    const isCollapsedTurnShadow = isCollapsedTurnShadowMessage(message, existing);
+    if (!hasRolloutReplacement && !isCollapsedTurnShadow) {
       return true;
     }
     return currentTimestampMs < earliestRolloutTimestampMs;
   });
+};
+
+const isCollapsedTurnShadowMessage = (
+  message: ChatMessage,
+  messages: ChatMessage[]
+): boolean => {
+  if (message.chronologySource !== "turn" || message.role === "user") {
+    return false;
+  }
+
+  return (
+    messages.filter(
+      (entry) =>
+        entry.chronologySource === "turn" &&
+        entry.role !== "user" &&
+        entry.createdAt === message.createdAt
+    ).length >= 2
+  );
+};
+
+const countUserToolMessages = (messages: ChatMessage[]): { user: number; tool: number } => ({
+  user: messages.filter((message) => message.role === "user").length,
+  tool: messages.filter((message) => message.eventType === "tool_call").length
+});
+
+const shouldKeepBaseSnapshotDuringLossyRollout = (
+  existing: ChatMessage[],
+  enrichment: ChatMessage[],
+  merged: ChatMessage[]
+): boolean => {
+  if (enrichment.length === 0) {
+    return false;
+  }
+
+  const orderedExisting = [...existing].sort(sortMessagesAscending);
+  const earliestEnrichmentTimestampMs = findEarliestRolloutTimestampMs(enrichment);
+  const overlapExisting =
+    earliestEnrichmentTimestampMs === null
+      ? orderedExisting
+      : orderedExisting.filter((message) => {
+          const timestampMs = Date.parse(message.createdAt);
+          return Number.isFinite(timestampMs) && timestampMs >= earliestEnrichmentTimestampMs;
+        });
+  const comparisonExisting =
+    overlapExisting.length > 0
+      ? overlapExisting
+      : orderedExisting.slice(-Math.max(8, enrichment.length));
+
+  if (comparisonExisting.length === 0) {
+    return false;
+  }
+
+  const existingCoverage = countUserToolMessages(comparisonExisting);
+  const enrichmentCoverage = countUserToolMessages(enrichment);
+  if (existingCoverage.tool > 0 && enrichmentCoverage.tool === 0) {
+    return true;
+  }
+
+  const latestBaseMessage = comparisonExisting.at(-1);
+  if (!latestBaseMessage) {
+    return false;
+  }
+
+  if (latestBaseMessage.eventType === "tool_call") {
+    return false;
+  }
+
+  if (!isAuthoritativeChronologySource(latestBaseMessage.chronologySource)) {
+    return false;
+  }
+
+  if (isCollapsedTurnShadowMessage(latestBaseMessage, comparisonExisting)) {
+    return false;
+  }
+
+  return !hasMatchingMessage(merged, latestBaseMessage);
 };
 
 const reanchorCollapsedTurnMessages = (messages: ChatMessage[]): ChatMessage[] => {
