@@ -351,7 +351,6 @@ const hasCompatibleToolCallShadow = (
     messageStatus.length > 0 &&
     candidateStatus.length > 0 &&
     messageStatus !== candidateStatus &&
-    !(messageStatus === "pending" && candidateStatus === "completed") &&
     !(messageStatus === "running" && candidateStatus === "completed")
   ) {
     return false;
