@@ -316,12 +316,14 @@ export const readThread = async (
           preferredRolloutPath,
           session.updatedAt
         );
+  const dedupedThreadMessages = dedupeHistoricalMessages(threadMessages);
   const messages =
     options?.skipMessages
       ? []
-      : rolloutHistory.messages.length > 0
+      : rolloutHistory.messages.length > 0 &&
+        !shouldPreferThreadHistoryOverRollout(dedupedThreadMessages, rolloutHistory.messages)
       ? rolloutHistory.messages
-      : dedupeHistoricalMessages(threadMessages);
+      : dedupedThreadMessages;
   if (!options?.skipMessages) {
     const firstUserMessage = messages.find((message) => message.role === "user");
     const latestPreviewMessage =
@@ -851,11 +853,11 @@ const toHistoryMessageFromRolloutRecord = (
     return null;
   }
   const sourceType = pickString(record, ["sourceType", "source_type"]);
-  // Rollout `response_item` user entries carry hidden prompt scaffolding
-  // (AGENTS/environment context, subagent notifications, etc.). Base
-  // `thread/read` history is authoritative for user messages, so rollout
-  // enrichment should only surface assistant-side `response_item` history.
-  if (sourceType === "response_item" && role !== "assistant") {
+  if (
+    sourceType === "response_item" &&
+    role === "user" &&
+    isHiddenResponseItemUserMessage(pickString(record, ["content"]) ?? "")
+  ) {
     return null;
   }
 
@@ -879,6 +881,35 @@ const toHistoryMessageFromRolloutRecord = (
       ? { eventType }
       : {})
   };
+};
+
+const isHiddenResponseItemUserMessage = (content: string): boolean => {
+  const normalized = content.trim().toLowerCase();
+  if (!normalized) {
+    return true;
+  }
+
+  if (normalized.startsWith("# agents.md instructions")) {
+    return true;
+  }
+
+  if (normalized.includes("<environment_context>")) {
+    return true;
+  }
+
+  if (
+    normalized.includes("codex-home") &&
+    normalized.includes("sandbox_mode") &&
+    normalized.includes("approval policy")
+  ) {
+    return true;
+  }
+
+  if (normalized.includes("<instructions>") && normalized.includes("</instructions>")) {
+    return true;
+  }
+
+  return false;
 };
 
 const toImagesFromRolloutRecord = (
@@ -1526,11 +1557,12 @@ const buildCompactRolloutPythonScript = (): string =>
     "            )",
     "            continue",
     "        if obj.get('type') == 'response_item' and payload_type == 'message':",
-    "            if payload.get('role') != 'assistant':",
+    "            role = payload.get('role')",
+    "            if role not in {'assistant', 'user', 'system'}:",
     "                continue",
     "            add_message(",
     "                obj.get('timestamp'),",
-    "                payload.get('role'),",
+    "                role,",
     "                extract_text(payload.get('content')),",
     "                [],",
     "                None,",
@@ -1601,8 +1633,6 @@ const buildCompactRolloutPythonScript = (): string =>
     "",
     "timeline = list(message_entries.values()) + list(tool_entries.values())",
     "timeline.sort(key=lambda entry: ((entry.get('createdAt') or ''), int(entry.get('order') or 0)))",
-    "if len(timeline) > 300:",
-    "    timeline = timeline[-300:]",
     "print(json.dumps(timeline))"
   ].join("\n");
 
@@ -1771,6 +1801,29 @@ const dedupeHistoricalMessages = (messages: ChatMessage[]): ChatMessage[] => {
   }
 
   return assignMissingTimelineOrder([...deduped.values()]).sort(sortMessagesAscending);
+};
+
+const shouldPreferThreadHistoryOverRollout = (
+  threadMessages: ChatMessage[],
+  rolloutMessages: ChatMessage[]
+): boolean => {
+  if (threadMessages.length === 0 || rolloutMessages.length === 0) {
+    return false;
+  }
+
+  const threadHasUser = threadMessages.some((message) => message.role === "user");
+  const threadHasTool = threadMessages.some((message) => message.role === "tool");
+  const rolloutHasUser = rolloutMessages.some((message) => message.role === "user");
+  const rolloutHasTool = rolloutMessages.some((message) => message.role === "tool");
+  const rolloutAllAssistant = rolloutMessages.every(
+    (message) => message.role === "assistant"
+  );
+
+  if ((threadHasUser && !rolloutHasUser) || (threadHasTool && !rolloutHasTool)) {
+    return true;
+  }
+
+  return rolloutMessages.length >= 300 && rolloutAllAssistant && (threadHasUser || threadHasTool);
 };
 
 const strictMessageIdentityKey = (message: ChatMessage): string => {
