@@ -15,7 +15,10 @@ import {
   historicalReopenRolloutRepairBaseMessages,
   historicalReopenRolloutRepairExpectedBrokenOrder,
   historicalReopenRolloutRepairExpectedFixedOrder,
-  historicalReopenRolloutRepairRolloutMessages
+  historicalReopenRolloutRepairRolloutMessages,
+  postHydrationParseLossBaseMessages,
+  postHydrationParseLossExpectedCanonicalOrder,
+  postHydrationParseLossRolloutAppliedMessages
 } from "./reopenedSessionDiagnosticFixtures";
 import {
   applyChronologyReplayFixture,
@@ -921,6 +924,17 @@ describe("useAppStore message upsert behavior", () => {
     expect(repaired.map((message) => message.timelineOrder)).toEqual([0, 1, 2, 3, 4, 5]);
   });
 
+  it("keeps base-loaded user/tool/assistant interleaving when rollout-applied coverage is lossy", () => {
+    const repaired = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      postHydrationParseLossBaseMessages,
+      postHydrationParseLossRolloutAppliedMessages
+    );
+
+    expect(messageRoleIdOrder(repaired)).toEqual(
+      postHydrationParseLossExpectedCanonicalOrder
+    );
+  });
+
   it("drops superseded turn reasoning blocks when rollout chronology repairs a reopened historical session", () => {
     const broken = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
       historicalReopenRolloutRepairBaseMessages,
@@ -1010,6 +1024,193 @@ describe("useAppStore message upsert behavior", () => {
     );
   });
 
+  it("keeps turn-only non-user messages when rollout has no equivalent replacement", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Write the updated plan to plan_message_chronology_v3.md"
+        }),
+        buildMessage({
+          id: "item-activity-2",
+          role: "assistant",
+          eventType: "activity",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Running in the sandboxed workspace"
+        })
+      ],
+      [
+        buildMessage({
+          id: "message-live-1",
+          role: "assistant",
+          chronologySource: "rollout",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:07.798Z",
+          content: "Ledger Snapshot: The reopened-session bug is not actually fixed."
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual([
+      "user:item-user-1",
+      "assistant:message-live-1",
+      "assistant:item-activity-2"
+    ]);
+    expect(merged.find((message) => message.id === "item-activity-2")).toBeDefined();
+  });
+
+  it("drops turn tool-call shadow when rollout contains the canonical tool call", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Inspect CONTINUITY.md"
+        }),
+        buildMessage({
+          id: "item-tool-2",
+          role: "tool",
+          eventType: "tool_call",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Tool: exec_command",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            status: "completed"
+          }
+        })
+      ],
+      [
+        buildMessage({
+          id: "call-live-1",
+          role: "tool",
+          chronologySource: "rollout",
+          eventType: "tool_call",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:08.687Z",
+          content: "Tool: exec_command",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            status: "completed"
+          }
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual(["user:item-user-1", "tool:call-live-1"]);
+    expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
+  });
+
+  it("drops turn tool-call shadow when rollout has richer tool status/output", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Inspect CONTINUITY.md"
+        }),
+        buildMessage({
+          id: "item-tool-2",
+          role: "tool",
+          eventType: "tool_call",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Tool: exec_command",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            status: "running"
+          }
+        })
+      ],
+      [
+        buildMessage({
+          id: "call-live-1",
+          role: "tool",
+          chronologySource: "rollout",
+          eventType: "tool_call",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:08.687Z",
+          content: "Tool: exec_command",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            output: "# CONTINUITY\n...",
+            status: "completed"
+          }
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual(["user:item-user-1", "tool:call-live-1"]);
+    expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
+  });
+
+  it("drops turn tool-call shadow when rollout has canonical content with appended output", () => {
+    const merged = __TEST_ONLY__.mergeRolloutEnrichmentMessages(
+      [
+        buildMessage({
+          id: "item-user-1",
+          role: "user",
+          chronologySource: "turn",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Inspect CONTINUITY.md"
+        }),
+        buildMessage({
+          id: "item-tool-2",
+          role: "tool",
+          eventType: "tool_call",
+          chronologySource: "turn",
+          timelineOrder: 1,
+          createdAt: "2026-03-12T14:15:49.000Z",
+          content: "Tool: exec_command\nInput: sed -n '1,220p' CONTINUITY.md",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            status: "running"
+          }
+        })
+      ],
+      [
+        buildMessage({
+          id: "call-live-1",
+          role: "tool",
+          chronologySource: "rollout",
+          eventType: "tool_call",
+          timelineOrder: 0,
+          createdAt: "2026-03-12T14:08:08.687Z",
+          content:
+            "Tool: exec_command\nInput: sed -n '1,220p' CONTINUITY.md\nOutput: # CONTINUITY\n...",
+          toolCall: {
+            name: "exec_command",
+            input: "sed -n '1,220p' CONTINUITY.md",
+            output: "# CONTINUITY\n...",
+            status: "completed"
+          }
+        })
+      ]
+    );
+
+    expect(messageRoleIdOrder(merged)).toEqual(["user:item-user-1", "tool:call-live-1"]);
+    expect(merged.find((message) => message.id === "item-tool-2")).toBeUndefined();
+  });
   it("replays mixed live+snapshot+rollout convergence from the shared chronology corpus", () => {
     const fixture = chronologyReplayFixtureById["live-snapshot-rollout-tool-convergence"];
     const messages = applyChronologyReplayFixture(fixture);

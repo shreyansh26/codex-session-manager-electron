@@ -28,6 +28,10 @@ import {
   existingSessionChronologyFixture
 } from "./chronologyReplayFixtures";
 import {
+  longSessionRolloutTruncationFixture,
+  responseItemClassifierFixture
+} from "./reopenedSessionDiagnosticFixtures";
+import {
   getMockRuntime,
   resetMockRuntimeRegistry
 } from "../../../shared/mock/mockHost";
@@ -597,6 +601,32 @@ describe("mock transport integration", () => {
     ).toHaveLength(1);
   });
 
+  it("keeps critical interleaving from historical thread/read data when rollout output is truncated to 300 entries", async () => {
+    const endpoint = "mock://local/rollout-truncation-over-300";
+    const device = mockDevice(endpoint);
+    const { commands } = installExistingSessionMockRuntime(endpoint, {
+      threadReadResult: longSessionRolloutTruncationFixture.threadReadResult,
+      rolloutPathFromSearch: longSessionRolloutTruncationFixture.rolloutPath,
+      rolloutStdoutByPath: {
+        [longSessionRolloutTruncationFixture.rolloutPath]: JSON.stringify(
+          longSessionRolloutTruncationFixture.truncatedRolloutTimeline
+        )
+      }
+    });
+
+    const payload = await readThread(device, longSessionRolloutTruncationFixture.threadId);
+    const roleIdOrder = payload.messages.map((message) => `${message.role}:${message.id}`);
+
+    expect(roleIdOrder).toEqual(
+      longSessionRolloutTruncationFixture.expectedCriticalInterleaving
+    );
+    expect(
+      commands.some((command) =>
+        command.includes(longSessionRolloutTruncationFixture.rolloutPath)
+      )
+    ).toBe(true);
+  });
+
   it("replays the same start-thread and start-turn sequence after resetting the mock registry", async () => {
     const runSequence = async () => {
       const device = mockDevice();
@@ -779,6 +809,20 @@ describe("parseMessagesFromThread", () => {
     ]);
     expect(messages.find((message) => message.id === "reasoning")?.eventType).toBe(
       "reasoning"
+    );
+  });
+
+  it("filters hidden response_item wrappers but keeps visible response_item user prompts", () => {
+    const messages = responseItemClassifierFixture.rolloutTimeline
+      .map((record) =>
+        codexApiTest.toTimelineMessageFromRolloutRecord("device-1", "thread-1", {
+          ...record
+        })
+      )
+      .filter((message): message is ChatMessage => message !== null);
+
+    expect(messages.map((message) => `${message.role}:${message.id}`)).toEqual(
+      responseItemClassifierFixture.expectedVisibleRoleIdOrder
     );
   });
 

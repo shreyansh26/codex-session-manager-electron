@@ -3,6 +3,10 @@ import ReactDOM from "react-dom/client";
 import { flushSync } from "react-dom";
 import App from "./App";
 import {
+  findLatestRolloutPathForThread,
+  readRolloutTimelineMessages
+} from "./services/codexApi";
+import {
   installRendererDiagnostics,
   recordRendererFirstRender
 } from "./services/harnessDiagnostics";
@@ -52,7 +56,10 @@ const waitForSelectedSessionMounted = async (sessionKey: string): Promise<void> 
   );
 };
 
-const waitForThreadHydration = async (sessionKey: string): Promise<void> => {
+const waitForThreadHydration = async (
+  sessionKey: string,
+  timeoutMs = 10_000
+): Promise<void> => {
   await waitForCondition(
     () => {
       const state = useAppStore.getState();
@@ -64,7 +71,8 @@ const waitForThreadHydration = async (sessionKey: string): Promise<void> => {
         !hydration?.toolHistoryLoading
       );
     },
-    `Thread hydration did not settle for ${sessionKey}.`
+    `Thread hydration did not settle for ${sessionKey}.`,
+    timeoutMs
   );
 };
 
@@ -107,7 +115,7 @@ installRendererDiagnostics({
       preserveSummary: true,
       hydrateRollout: false
     });
-    await waitForThreadHydration(sessionKey);
+    await waitForThreadHydration(sessionKey, 30_000);
 
     const baseState = useAppStore.getState();
     const baseSession = baseState.sessions.find((session) => session.key === sessionKey);
@@ -132,11 +140,41 @@ installRendererDiagnostics({
       costDisplay: EMPTY_COST_DISPLAY
     });
 
+    const baseDevice =
+      baseState.devices.find((device) => device.id === baseSession.deviceId) ??
+      initialState.devices.find((device) => device.id === initialSession.deviceId);
+    let rolloutParsedCapture: Awaited<ReturnType<typeof captureTranscriptPhase>> | null = null;
+
+    if (baseDevice) {
+      const rolloutPath = await findLatestRolloutPathForThread(
+        baseDevice,
+        baseSession.threadId
+      );
+      if (typeof rolloutPath === "string" && rolloutPath.trim().length > 0) {
+        const rolloutParsedMessages = await readRolloutTimelineMessages(
+          baseDevice,
+          baseSession.threadId,
+          rolloutPath,
+          baseSession.updatedAt
+        );
+        rolloutParsedCapture = await captureTranscriptPhase({
+          session: baseSession,
+          messages: rolloutParsedMessages,
+          hydrationState: {
+            ...baseHydration,
+            toolHistoryLoading: true
+          },
+          phase: "rollout-parsed",
+          costDisplay: EMPTY_COST_DISPLAY
+        });
+      }
+    }
+
     await useAppStore.getState().refreshThread(initialSession.deviceId, initialSession.threadId, {
       preserveSummary: true,
       hydrateRollout: true
     });
-    await waitForThreadHydration(sessionKey);
+    await waitForThreadHydration(sessionKey, 30_000);
 
     const rolloutState = useAppStore.getState();
     const rolloutSession = rolloutState.sessions.find((session) => session.key === sessionKey);
@@ -156,7 +194,7 @@ installRendererDiagnostics({
       session: rolloutSession,
       messages: rolloutMessages,
       hydrationState: rolloutHydration,
-      phase: "rollout-idle",
+      phase: "rollout-applied",
       mountedRoot: rolloutRoot,
       costDisplay: EMPTY_COST_DISPLAY
     });
@@ -165,7 +203,11 @@ installRendererDiagnostics({
       sessionKey,
       threadId: rolloutSession.threadId,
       deviceId: rolloutSession.deviceId,
-      captures: [baseCapture, rolloutCapture]
+      captures: [
+        baseCapture,
+        ...(rolloutParsedCapture ? [rolloutParsedCapture] : []),
+        rolloutCapture
+      ]
     };
   }
 });

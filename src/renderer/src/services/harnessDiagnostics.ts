@@ -4,6 +4,7 @@ import {
   type HarnessPreloadBridge,
   type HarnessRendererHooks
 } from "../../../shared/diagnostics/bridge";
+import { enrichReopenedSessionTranscriptCapture } from "./renderedTranscriptSnapshot";
 
 interface WindowLike {
   addEventListener: (event: string, listener: EventListener) => void;
@@ -19,6 +20,14 @@ type GlobalWindow = WindowLike &
     [HARNESS_PRELOAD_GLOBAL]?: HarnessPreloadBridge;
     [HARNESS_RENDERER_GLOBAL]?: HarnessRendererHooks;
   };
+
+const safelyEnrichCapture = (capture: unknown): unknown => {
+  try {
+    return enrichReopenedSessionTranscriptCapture(capture);
+  } catch {
+    return capture;
+  }
+};
 
 export const installRendererDiagnostics = (options: {
   windowLike: GlobalWindow;
@@ -37,8 +46,13 @@ export const installRendererDiagnostics = (options: {
     },
     ...(options.captureHistoricalSessionTranscript
       ? {
-          captureHistoricalSessionTranscript: async (sessionKey: string) =>
-            options.captureHistoricalSessionTranscript?.(sessionKey) ?? null
+          captureHistoricalSessionTranscript: async (sessionKey: string) => {
+            const capture = await options.captureHistoricalSessionTranscript?.(sessionKey);
+            if (!capture) {
+              return null;
+            }
+            return safelyEnrichCapture(capture);
+          }
         }
       : {})
   };
