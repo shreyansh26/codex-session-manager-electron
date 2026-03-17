@@ -27,6 +27,10 @@ import {
   historicalReopenRolloutRepairExpectedBrokenOrder,
   historicalReopenRolloutRepairExpectedFixedOrder,
   historicalReopenRolloutRepairRolloutMessages,
+  postHydrationParseLossBaseMessages,
+  postHydrationParseLossExpectedCanonicalOrder,
+  postHydrationParseLossRolloutAppliedMessages,
+  postHydrationParseLossSession,
   historicalReopenRolloutRepairSession
 } from "./reopenedSessionDiagnosticFixtures";
 
@@ -425,6 +429,39 @@ describe("renderedTranscriptSnapshot helpers", () => {
     );
     expect(snapshot.domEntries.map((entry) => `${entry.role}:${entry.id}`)).not.toEqual(
       historicalReopenRolloutRepairExpectedBrokenOrder
+    );
+  });
+
+  it("keeps canonical expanded DOM order when rollout-applied history is lossy", () => {
+    const merged = storeTest.mergeRolloutEnrichmentMessages(
+      postHydrationParseLossBaseMessages,
+      postHydrationParseLossRolloutAppliedMessages
+    );
+    const expandedWindow = buildExpandedVisibleWindow(merged);
+    const { container } = render(
+      <ChatPanel
+        session={postHydrationParseLossSession}
+        messages={merged}
+        costDisplay={DEFAULT_COST_DISPLAY}
+        hydrationState={DEFAULT_HYDRATION_STATE}
+        windowOverride={expandedWindow}
+      />
+    );
+
+    const snapshot = buildRenderedTranscriptSnapshot({
+      session: postHydrationParseLossSession,
+      phase: "rollout-applied",
+      mode: "expanded-full",
+      messages: merged,
+      visibleWindow: deriveVisibleWindowSnapshotFromDom({
+        messages: merged,
+        domEntries: extractRenderedTranscriptDomEntries(container)
+      }),
+      domEntries: extractRenderedTranscriptDomEntries(container)
+    });
+
+    expect(snapshot.domEntries.map((entry) => `${entry.role}:${entry.id}`)).toEqual(
+      postHydrationParseLossExpectedCanonicalOrder
     );
   });
 
