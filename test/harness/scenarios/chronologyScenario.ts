@@ -71,6 +71,9 @@ export const runChronologyScenario = async (page: MockScenarioPage): Promise<voi
             storeVsDom?: { firstMismatchIndex?: number | null };
           };
         }>;
+        analysis?: {
+          firstBadLayer?: string | null;
+        };
       } | null;
       await hooks.pushStateSnapshot?.("reopened-session-transcript", capture);
 
@@ -83,24 +86,32 @@ export const runChronologyScenario = async (page: MockScenarioPage): Promise<voi
         mountedMismatch: phaseCapture.mountedVisible?.storeVsDom?.firstMismatchIndex ?? null,
         expandedMismatch: phaseCapture.expandedFull?.storeVsDom?.firstMismatchIndex ?? null
       }));
-      const rolloutIdle = (capture?.captures ?? []).find(
-        (phaseCapture) => phaseCapture.phase === "rollout-idle"
+      const rolloutApplied = (capture?.captures ?? []).find(
+        (phaseCapture) => phaseCapture.phase === "rollout-applied"
+      );
+      const rolloutParsed = (capture?.captures ?? []).find(
+        (phaseCapture) => phaseCapture.phase === "rollout-parsed"
+      );
+      const rolloutAppliedOrder = (rolloutApplied?.expandedFull?.domEntries ?? []).map(
+        (entry) => entry.renderKey ?? ""
+      );
+      const rolloutAppliedMismatch = mismatches.find(
+        (entry) => entry.phase === "rollout-applied"
       );
 
       return {
         capture,
         expandedOrders,
         mismatches,
-        rolloutIdleOutput: (rolloutIdle?.expandedFull?.domEntries ?? [])
+        rolloutAppliedOutput: (rolloutApplied?.expandedFull?.domEntries ?? [])
           .map((entry) => entry.textPreview ?? "")
           .join(" "),
+        hasRolloutParsedPhase: Boolean(rolloutParsed),
+        firstBadLayer: capture?.analysis?.firstBadLayer ?? null,
         matchesExpected:
-          expandedOrders.every(
-            (entry) => entry.order.join(" | ") === expectedOrder.join(" | ")
-          ) &&
-          mismatches.every(
-            (entry) => entry.mountedMismatch === null && entry.expandedMismatch === null
-          )
+          rolloutAppliedOrder.join(" | ") === expectedOrder.join(" | ") &&
+          (rolloutAppliedMismatch?.mountedMismatch ?? null) === null &&
+          (rolloutAppliedMismatch?.expandedMismatch ?? null) === null
       };
     }
   );
@@ -110,10 +121,13 @@ export const runChronologyScenario = async (page: MockScenarioPage): Promise<voi
       `Rendered chronology capture mismatch: ${JSON.stringify(artifact, null, 2)}`
     );
   }
-  if (!artifact.rolloutIdleOutput.includes("project-1")) {
-    throw new Error("Rollout-idle capture is missing the first tool output.");
+  if (!artifact.hasRolloutParsedPhase) {
+    throw new Error("Capture is missing rollout-parsed phase.");
   }
-  if (!artifact.rolloutIdleOutput.includes("project-2")) {
-    throw new Error("Rollout-idle capture is missing the second tool output.");
+  if (!artifact.rolloutAppliedOutput.includes("project-1")) {
+    throw new Error("Rollout-applied capture is missing the first tool output.");
+  }
+  if (!artifact.rolloutAppliedOutput.includes("project-2")) {
+    throw new Error("Rollout-applied capture is missing the second tool output.");
   }
 };
