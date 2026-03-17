@@ -581,11 +581,11 @@ const classifyFirstBadLayer = (params: {
     return { firstBadLayer: "visible_window_loss", notes, diffs, coverage };
   }
   if (
-    coverage.rolloutApplied.tool < coverage.baseLoaded.tool ||
-    coverage.rolloutApplied.user < coverage.baseLoaded.user ||
-    coverage.rolloutApplied.total < coverage.baseLoaded.total
+    coverage.rolloutParsed.tool < coverage.baseLoaded.tool ||
+    coverage.rolloutParsed.user < coverage.baseLoaded.user ||
+    coverage.rolloutParsed.total < coverage.baseLoaded.total
   ) {
-    notes.push("Rollout-applied coverage regressed versus base-loaded.");
+    notes.push("Rollout-parsed coverage regressed versus base-loaded.");
     return { firstBadLayer: "rollout_parse_loss", notes, diffs, coverage };
   }
   if (
@@ -620,13 +620,15 @@ export const enrichReopenedSessionTranscriptCapture = (
     rolloutParsed,
     rolloutApplied
   });
+  const rolloutParsedSource =
+    findPhaseCapture(parsed.captures, "rollout-parsed") ? "raw" : "inferred-from-rollout-applied";
 
   return reopenedSessionTranscriptCaptureSchema.parse({
     ...parsed,
     captures: [baseLoaded, rolloutParsed, rolloutApplied],
     analysis: {
       firstBadLayer: phaseSummary.firstBadLayer,
-      rolloutParsedSource: "inferred-from-rollout-applied",
+      rolloutParsedSource,
       coverage: phaseSummary.coverage,
       diffs: phaseSummary.diffs,
       notes: phaseSummary.notes
